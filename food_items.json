@@ -1,0 +1,20 @@
+{
+  "foods": [
+    {
+      "label": "Carrot",
+      "sprite_path": "food/food_carrot.png"
+    },
+    {
+      "label": "Burger",
+      "sprite_path": "food/food_burger.png"
+    },
+    {
+      "label": "Radish",
+      "sprite_path": "food/food_radish.png"
+    },
+    {
+      "label": "Watermelon",
+      "sprite_path": "food/food_watermelon.png"
+    }
+  ]
+}

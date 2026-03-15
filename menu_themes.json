@@ -1,0 +1,117 @@
+{
+  "default_theme": "ocean_blue",
+  "themes": {
+    "diamond_pink": {
+      "label": "Diamond Pink",
+      "panel": [86, 40, 72],
+      "text": [255, 244, 250],
+      "muted": [241, 196, 221],
+      "accent": [255, 186, 222],
+      "border": [255, 228, 240]
+    },
+    "ocean_blue": {
+      "label": "Ocean Blue",
+      "panel": [24, 54, 88],
+      "text": [240, 248, 255],
+      "muted": [170, 206, 232],
+      "accent": [94, 188, 255],
+      "border": [209, 231, 250]
+    },
+    "forest_green": {
+      "label": "Forest Green",
+      "panel": [26, 56, 40],
+      "text": [239, 248, 240],
+      "muted": [176, 210, 184],
+      "accent": [116, 193, 131],
+      "border": [213, 236, 219]
+    },
+    "aurora_purple": {
+      "label": "Aurora Purple",
+      "panel": [53, 39, 81],
+      "text": [246, 241, 255],
+      "muted": [198, 183, 226],
+      "accent": [170, 129, 255],
+      "border": [231, 223, 255]
+    },
+    "sunflower_yellow": {
+      "label": "Sunflower Yellow",
+      "panel": [92, 72, 18],
+      "text": [255, 250, 226],
+      "muted": [237, 223, 160],
+      "accent": [255, 214, 74],
+      "border": [255, 238, 174]
+    },
+    "royal_crimson": {
+      "label": "Royal Crimson",
+      "panel": [86, 22, 34],
+      "text": [255, 241, 244],
+      "muted": [232, 181, 191],
+      "accent": [217, 68, 96],
+      "border": [247, 210, 218]
+    },
+    "citrus_orange": {
+      "label": "Citrus Orange",
+      "panel": [98, 48, 16],
+      "text": [255, 245, 233],
+      "muted": [239, 193, 145],
+      "accent": [255, 145, 54],
+      "border": [255, 223, 190]
+    },
+    "mint_green": {
+      "label": "Mint Green",
+      "panel": [24, 72, 62],
+      "text": [240, 255, 250],
+      "muted": [175, 224, 210],
+      "accent": [108, 224, 181],
+      "border": [208, 245, 233]
+    },
+    "cherry_lagoon": {
+      "label": "Cherry Lagoon",
+      "panel": [28, 48, 86],
+      "text": [248, 250, 255],
+      "muted": [182, 203, 233],
+      "accent": [230, 82, 110],
+      "border": [255, 200, 212]
+    },
+    "solar_reef": {
+      "label": "Solar Reef",
+      "panel": [18, 64, 74],
+      "text": [246, 255, 251],
+      "muted": [165, 219, 214],
+      "accent": [255, 130, 88],
+      "border": [255, 223, 170]
+    },
+    "sapphire_gold": {
+      "label": "Sapphire Gold",
+      "panel": [25, 44, 96],
+      "text": [247, 250, 255],
+      "muted": [176, 198, 237],
+      "accent": [247, 194, 76],
+      "border": [255, 231, 171]
+    },
+    "berry_cyan": {
+      "label": "Berry Cyan",
+      "panel": [72, 27, 73],
+      "text": [255, 244, 255],
+      "muted": [214, 177, 224],
+      "accent": [89, 221, 255],
+      "border": [170, 238, 255]
+    },
+    "ember_teal": {
+      "label": "Ember Teal",
+      "panel": [72, 39, 26],
+      "text": [255, 246, 239],
+      "muted": [229, 189, 167],
+      "accent": [79, 212, 196],
+      "border": [164, 241, 230]
+    },
+    "dusk_lime": {
+      "label": "Dusk Lime",
+      "panel": [51, 40, 79],
+      "text": [250, 247, 255],
+      "muted": [204, 191, 229],
+      "accent": [178, 232, 88],
+      "border": [219, 249, 179]
+    }
+  }
+}
