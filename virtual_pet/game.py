@@ -56,25 +56,33 @@ from .config import (
     WINDOW_TITLE,
 )
 from .content import load_background_image, load_food_items, load_menu_themes, load_pet_sprite, load_prop_sprite
+from .input import INPUT_BACK, INPUT_CONFIRM, INPUT_NEXT, INPUT_PREVIOUS, create_input_backend
 from .models import FoodItem, MenuState, Pet, RuntimeState
 from .persistence import load_game_state, save_game_state
 from .renderer import GameRenderer
+from .runtime import RuntimeConfig, build_runtime_config
 
 logger = logging.getLogger("virtual_pet")
 
 
 class Game:
-    def __init__(self) -> None:
+    def __init__(self, runtime: RuntimeConfig | None = None) -> None:
+        self.runtime = runtime or build_runtime_config(())
         logger.info("Initializing pygame...")
         pre_init_audio()
         pygame.init()
         pygame.display.set_caption(WINDOW_TITLE)
 
         self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        self.window = pygame.display.set_mode((SCREEN_WIDTH * DEFAULT_DISPLAY_SCALE, SCREEN_HEIGHT * DEFAULT_DISPLAY_SCALE))
-        self.window_size = self.window.get_size()
+        self.window = self.screen
+        self.window_size = self.screen.get_size()
         self.clock = pygame.time.Clock()
         self._is_shutdown = False
+        self.hardware_input = create_input_backend(self.runtime.enable_gpio_input)
+
+        mouse = getattr(pygame, "mouse", None)
+        if mouse is not None and hasattr(mouse, "set_visible"):
+            mouse.set_visible(not self.runtime.hide_mouse)
 
         logger.info("Loading content...")
         self.default_menu_theme, self.themes = load_menu_themes()
@@ -95,7 +103,7 @@ class Game:
             self.settings.menu_theme = self.default_menu_theme
 
         self.main_menu = list(MAIN_MENU_OPTIONS)
-        self.option_menu = list(OPTION_MENU_OPTIONS)
+        self.option_menu = [option for option in OPTION_MENU_OPTIONS if self.is_option_enabled(option)]
         self.actions = list(ACTION_OPTIONS)
         self.play_menu = list(PLAY_MENU_OPTIONS)
         self.theme_options = list(self.themes.keys())
@@ -105,6 +113,7 @@ class Game:
         self.state = RuntimeState()
         self.state.selected_theme = self.theme_options.index(self.settings.menu_theme)
         self.state.selected_resolution = self.resolution_options.index(self.settings.display_scale)
+        self.state.selected_option_menu = self.clamp_selection(self.state.selected_option_menu, self.option_menu)
         self.apply_sound_volume(self.settings.sound_volume)
         self.state.pet_wander_x = float(SCREEN_WIDTH // 2)
         self.state.pet_wander_start_x = self.state.pet_wander_x
@@ -128,14 +137,50 @@ class Game:
     def play_sound(self, sound_name: str) -> None:
         self.audio.play(sound_name)
 
+    @staticmethod
+    def clamp_selection(selected_index: int, options: list[object]) -> int:
+        if not options:
+            return 0
+
+        return max(0, min(selected_index, len(options) - 1))
+
+    @staticmethod
+    def cycle_index(selected_index: int, options: list[object], step: int) -> int:
+        if not options:
+            return 0
+
+        return (selected_index + step) % len(options)
+
+    def is_option_enabled(self, option_name: str) -> bool:
+        if option_name == "Res":
+            return self.runtime.allow_display_scale
+
+        return True
+
+    def refresh_window(self) -> None:
+        window_flags = getattr(pygame, "FULLSCREEN", 0) if self.runtime.fullscreen else 0
+        requested_size = (SCREEN_WIDTH * self.settings.display_scale, SCREEN_HEIGHT * self.settings.display_scale)
+        if self.runtime.fullscreen:
+            requested_size = (0, 0)
+
+        self.window = pygame.display.set_mode(requested_size, window_flags)
+        actual_size = self.window.get_size()
+        if actual_size == (0, 0):
+            actual_size = (SCREEN_WIDTH, SCREEN_HEIGHT) if self.runtime.fullscreen else requested_size
+        self.window_size = actual_size
+
     def apply_display_scale(self, display_scale: int) -> None:
         if display_scale not in DISPLAY_SCALE_OPTIONS:
             display_scale = DEFAULT_DISPLAY_SCALE
 
         self.settings.display_scale = display_scale
-        self.window_size = (SCREEN_WIDTH * self.settings.display_scale, SCREEN_HEIGHT * self.settings.display_scale)
-        self.window = pygame.display.set_mode(self.window_size)
-        logger.info("Applied display scale %sx (%sx%s).", self.settings.display_scale, *self.window_size)
+        self.refresh_window()
+        logger.info(
+            "Applied display mode fullscreen=%s scale=%sx (%sx%s).",
+            self.runtime.fullscreen,
+            self.settings.display_scale,
+            *self.window_size,
+        )
 
     def apply_sound_volume(self, sound_volume: float) -> None:
         if sound_volume not in self.sound_volume_options:
@@ -172,6 +217,8 @@ class Game:
     def open_option_menu(self) -> None:
         if not self.settings.menu_memory_enabled:
             self.state.selected_option_menu = 0
+        else:
+            self.state.selected_option_menu = self.clamp_selection(self.state.selected_option_menu, self.option_menu)
         self.state.menu_state = MenuState.OPTIONS
 
     def open_food_menu(self) -> None:
@@ -185,6 +232,11 @@ class Game:
         self.state.menu_state = MenuState.THEMES
 
     def open_resolution_menu(self) -> None:
+        if not self.runtime.allow_display_scale:
+            logger.info("Display scale menu is disabled for the current runtime.")
+            self.open_option_menu()
+            return
+
         if not self.settings.menu_memory_enabled:
             self.state.selected_resolution = self.resolution_options.index(self.settings.display_scale)
         self.state.menu_state = MenuState.RESOLUTION
@@ -195,15 +247,23 @@ class Game:
         self.state.menu_state = MenuState.RESET_CONFIRM
 
     def get_option_menu_labels(self) -> list[str]:
+        labels: list[str] = []
         menu_mem_state = "On" if self.settings.menu_memory_enabled else "Off"
         volume_percent = int(round(self.settings.sound_volume * 100))
-        return [
-            "Theme",
-            f"Menu Mem: {menu_mem_state}",
-            f"Vol: {volume_percent}%",
-            f"Res: {self.settings.display_scale}x",
-            "Reset",
-        ]
+
+        for option in self.option_menu:
+            if option == "Theme":
+                labels.append("Theme")
+            elif option == "Menu Mem":
+                labels.append(f"Menu Mem: {menu_mem_state}")
+            elif option == "Volume":
+                labels.append(f"Vol: {volume_percent}%")
+            elif option == "Res":
+                labels.append(f"Res: {self.settings.display_scale}x")
+            elif option == "Reset":
+                labels.append("Reset")
+
+        return labels
 
     def reset_pet(self) -> None:
         logger.info("Resetting pet to default state.")
@@ -371,7 +431,7 @@ class Game:
         self.state.pet_wander_pause = random.uniform(WANDER_PAUSE_MIN_SECONDS, WANDER_PAUSE_MAX_SECONDS)
         self.state.menu_state = MenuState.HOME
 
-    def cycle_selection(self) -> None:
+    def cycle_selection(self, step: int = 1) -> None:
         if self.state.menu_state == MenuState.HOME:
             logger.info("Opening main menu.")
             self.open_main_menu()
@@ -379,32 +439,32 @@ class Game:
             return
 
         if self.state.menu_state == MenuState.ACTIONS:
-            self.state.selected_action = (self.state.selected_action + 1) % len(self.actions)
+            self.state.selected_action = self.cycle_index(self.state.selected_action, self.actions, step)
             logger.info("Selected action index changed to %s", self.state.selected_action)
             self.play_sound("menu_cycle")
             return
 
         if self.state.menu_state == MenuState.PLAY_MENU:
-            self.state.selected_play_menu = (self.state.selected_play_menu + 1) % len(self.play_menu)
+            self.state.selected_play_menu = self.cycle_index(self.state.selected_play_menu, self.play_menu, step)
             logger.info("Selected play menu index changed to %s", self.state.selected_play_menu)
             self.play_sound("menu_cycle")
             return
 
         if self.state.menu_state == MenuState.OPTIONS:
-            self.state.selected_option_menu = (self.state.selected_option_menu + 1) % len(self.option_menu)
+            self.state.selected_option_menu = self.cycle_index(self.state.selected_option_menu, self.option_menu, step)
             logger.info("Selected option menu index changed to %s", self.state.selected_option_menu)
             self.play_sound("menu_cycle")
             return
 
         if self.state.menu_state == MenuState.RESOLUTION:
-            self.state.selected_resolution = (self.state.selected_resolution + 1) % len(self.resolution_options)
+            self.state.selected_resolution = self.cycle_index(self.state.selected_resolution, self.resolution_options, step)
             logger.info("Selected resolution index changed to %s", self.state.selected_resolution)
             self.play_sound("menu_cycle")
             return
 
         if self.state.menu_state == MenuState.FOODS:
             if self.food_options:
-                self.state.selected_food = (self.state.selected_food + 1) % len(self.food_options)
+                self.state.selected_food = self.cycle_index(self.state.selected_food, self.food_options, step)
                 logger.info("Selected food index changed to %s", self.state.selected_food)
                 self.play_sound("menu_cycle")
             return
@@ -426,13 +486,13 @@ class Game:
             return
 
         if self.state.menu_state == MenuState.THEMES:
-            self.state.selected_theme = (self.state.selected_theme + 1) % len(self.theme_options)
+            self.state.selected_theme = self.cycle_index(self.state.selected_theme, self.theme_options, step)
             logger.info("Selected theme index changed to %s", self.state.selected_theme)
             self.play_sound("menu_cycle")
             return
 
         if self.state.menu_state == MenuState.RESET_CONFIRM:
-            self.state.selected_reset = (self.state.selected_reset + 1) % len(self.reset_options)
+            self.state.selected_reset = self.cycle_index(self.state.selected_reset, self.reset_options, step)
             logger.info("Selected reset confirmation index changed to %s", self.state.selected_reset)
             self.play_sound("menu_cycle")
             return
@@ -441,7 +501,7 @@ class Game:
             logger.info("Status view has no selectable items.")
             return
 
-        self.state.selected_menu = (self.state.selected_menu + 1) % len(self.main_menu)
+        self.state.selected_menu = self.cycle_index(self.state.selected_menu, self.main_menu, step)
         logger.info("Selected main menu index changed to %s", self.state.selected_menu)
         self.play_sound("menu_cycle")
 
@@ -832,12 +892,39 @@ class Game:
                 self.state.running = False
             elif event.type == pygame.KEYDOWN:
                 logger.info("Key pressed: %s", event.key)
-                if event.key == pygame.K_q:
-                    self.cycle_selection()
-                elif event.key == pygame.K_w:
-                    self.confirm_selection()
-                elif event.key == pygame.K_e:
-                    self.go_back()
+                self.handle_keyboard_input(event.key)
+
+        if self.hardware_input is not None:
+            for action in self.hardware_input.poll_actions():
+                self.handle_input_action(action)
+
+    def handle_keyboard_input(self, key: int) -> None:
+        if self.key_matches(key, "K_q", "K_DOWN", "K_RIGHT", "K_TAB"):
+            self.handle_input_action(INPUT_NEXT)
+        elif self.key_matches(key, "K_a", "K_UP", "K_LEFT"):
+            self.handle_input_action(INPUT_PREVIOUS)
+        elif self.key_matches(key, "K_w", "K_RETURN", "K_SPACE"):
+            self.handle_input_action(INPUT_CONFIRM)
+        elif self.key_matches(key, "K_e", "K_ESCAPE", "K_BACKSPACE"):
+            self.handle_input_action(INPUT_BACK)
+
+    def handle_input_action(self, action: str) -> None:
+        if action == INPUT_NEXT:
+            self.cycle_selection(1)
+        elif action == INPUT_PREVIOUS:
+            self.cycle_selection(-1)
+        elif action == INPUT_CONFIRM:
+            self.confirm_selection()
+        elif action == INPUT_BACK:
+            self.go_back()
+
+    @staticmethod
+    def key_matches(key: int, *key_names: str) -> bool:
+        for key_name in key_names:
+            if key == getattr(pygame, key_name, None):
+                return True
+
+        return False
 
     def shutdown(self, save: bool = True) -> None:
         if self._is_shutdown:
@@ -847,6 +934,8 @@ class Game:
         if save:
             logger.info("Saving state before quit...")
             save_game_state(self.pet, self.settings)
+        if self.hardware_input is not None:
+            self.hardware_input.close()
         pygame.quit()
         logger.info("Shutdown complete.")
 
@@ -858,7 +947,7 @@ class Game:
                 self.handle_events()
                 self.update(dt)
                 self.draw_ui()
-                if self.settings.display_scale == 1:
+                if self.window_size == self.screen.get_size():
                     self.window.blit(self.screen, (0, 0))
                 else:
                     scaled_surface = pygame.transform.scale(self.screen, self.window_size)

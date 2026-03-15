@@ -30,6 +30,7 @@ class BootstrapTests(unittest.TestCase):
             main_module = importlib.import_module("virtual_pet.main")
             game_module = importlib.import_module("virtual_pet.game")
             models_module = importlib.import_module("virtual_pet.models")
+            runtime_module = importlib.import_module("virtual_pet.runtime")
             wrapper_module = importlib.import_module("virtual_pet_template")
 
             game = game_module.Game()
@@ -37,8 +38,13 @@ class BootstrapTests(unittest.TestCase):
                 self.assertIsNotNone(game.renderer)
                 self.assertIsNotNone(game.audio)
                 self.assertEqual(game.audio.master_volume, game.settings.sound_volume)
+                self.assertIn("Res", game.option_menu)
                 played_sounds: list[str] = []
                 game.audio.play = played_sounds.append
+                game.state.menu_state = models_module.MenuState.MAIN_MENU
+                game.state.selected_menu = 0
+                game.handle_keyboard_input(pygame_stub.K_a)
+                self.assertEqual(game.state.selected_menu, len(game.main_menu) - 1)
                 game.state.menu_state = models_module.MenuState.ACTIONS
                 game.state.selected_action = game.actions.index("Clean")
                 game.confirm_selection()
@@ -91,6 +97,20 @@ class BootstrapTests(unittest.TestCase):
                 self.assertEqual(game.audio.master_volume, 0.0)
             finally:
                 game.shutdown(save=False)
+
+            hat_game = game_module.Game(
+                runtime=runtime_module.RuntimeConfig(
+                    profile=runtime_module.PROFILE_WAVESHARE_HAT,
+                    fullscreen=True,
+                    hide_mouse=True,
+                    enable_gpio_input=False,
+                    allow_display_scale=False,
+                )
+            )
+            try:
+                self.assertNotIn("Res", hat_game.option_menu)
+            finally:
+                hat_game.shutdown(save=False)
 
         self.assertIs(wrapper_module.main, main_module.main)
 

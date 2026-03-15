@@ -155,9 +155,20 @@ def install_pygame_stub():
     pygame.error = RuntimeError
     pygame.QUIT = 256
     pygame.KEYDOWN = 768
+    pygame.FULLSCREEN = 1
     pygame.K_q = 113
+    pygame.K_a = 97
     pygame.K_w = 119
     pygame.K_e = 101
+    pygame.K_TAB = 9
+    pygame.K_RETURN = 13
+    pygame.K_SPACE = 32
+    pygame.K_BACKSPACE = 8
+    pygame.K_ESCAPE = 27
+    pygame.K_UP = 273
+    pygame.K_DOWN = 274
+    pygame.K_RIGHT = 275
+    pygame.K_LEFT = 276
     pygame.SRCALPHA = 65536
     pygame.Surface = FakeSurface
     pygame.Rect = FakeRect
@@ -187,6 +198,7 @@ def install_pygame_stub():
     pygame.time = types.SimpleNamespace(Clock=FakeClock)
     pygame.font = types.SimpleNamespace(SysFont=lambda _name, size, bold=False: FakeFont(size))
     pygame.event = types.SimpleNamespace(get=lambda: [])
+    pygame.mouse = types.SimpleNamespace(set_visible=lambda *_args, **_kwargs: None)
     pygame.transform = types.SimpleNamespace(
         scale=lambda _surface, size: FakeSurface(size),
         smoothscale=lambda _surface, size: FakeSurface(size),
