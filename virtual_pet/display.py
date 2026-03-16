@@ -30,6 +30,8 @@ class DirectSpiDisplay:
         self._clear_frame = bytes(SCREEN_WIDTH * SCREEN_HEIGHT * 2)
         self._frame_interval_seconds = 1.0 / WAVESHARE_LCD_TARGET_FPS
         self._last_present_at = 0.0
+        self._saturation = 1.0
+        self._saturation_scale = 256
 
         self._spi = spidev.SpiDev()
         self._spi.open(WAVESHARE_LCD_SPI_PORT, WAVESHARE_LCD_SPI_CS)
@@ -44,6 +46,10 @@ class DirectSpiDisplay:
         self.initialize()
         self.clear()
         logger.info("Initialized direct SPI output for the Waveshare ST7789 display.")
+
+    def set_saturation(self, saturation: float) -> None:
+        self._saturation = max(0.5, min(1.6, float(saturation)))
+        self._saturation_scale = int(round(self._saturation * 256.0))
 
     def reset(self) -> None:
         self._rst.on()
@@ -113,6 +119,8 @@ class DirectSpiDisplay:
         frame = self._numpy.frombuffer(rgb_bytes, dtype=self._numpy.uint8).reshape((SCREEN_HEIGHT, SCREEN_WIDTH, 3))
         if self._rotation_steps:
             frame = self._numpy.rot90(frame, k=self._rotation_steps)
+        if self._saturation_scale != 256:
+            frame = self.apply_saturation(frame)
 
         pixel_data = (
             ((frame[..., 0].astype(self._numpy.uint16) & 0xF8) << 8)
@@ -122,6 +130,16 @@ class DirectSpiDisplay:
         payload = pixel_data.astype(">u2", copy=False).tobytes()
         self.set_window(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1)
         self.write_frame(payload)
+
+    def apply_saturation(self, frame: object) -> object:
+        frame_i32 = frame.astype(self._numpy.int32, copy=False)
+        luma = (
+            (54 * frame_i32[..., 0])
+            + (183 * frame_i32[..., 1])
+            + (19 * frame_i32[..., 2])
+        ) >> 8
+        saturated = luma[..., None] + (((frame_i32 - luma[..., None]) * self._saturation_scale) >> 8)
+        return self._numpy.clip(saturated, 0, 255).astype(self._numpy.uint8)
 
     def set_window(self, x_start: int, y_start: int, x_end: int, y_end: int) -> None:
         self.write_command(0x2A)

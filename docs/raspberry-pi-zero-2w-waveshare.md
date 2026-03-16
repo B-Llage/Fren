@@ -30,6 +30,10 @@ python3 virtual_pet_template.py --platform waveshare-hat --windowed --no-direct-
 - HAT confirm: joystick press, `KEY2`
 - HAT back: `KEY3`
 
+### HAT-only display setting
+
+When the direct Waveshare output backend is active, the in-game `Option` menu includes `Color`, which cycles the panel saturation between `Normal`, `Rich`, `Vivid`, and `Boost`.
+
 ### Pi setup
 
 1. Follow the official Waveshare HAT setup first:

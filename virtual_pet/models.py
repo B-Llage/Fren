@@ -9,6 +9,7 @@ from .config import (
     ACTIONS_PRIMARY_AMOUNT,
     ACTIONS_SECONDARY_AMOUNT,
     DEFAULT_DISPLAY_SCALE,
+    DEFAULT_DISPLAY_SATURATION,
     DEFAULT_MENU_MEMORY_ENABLED,
     DEFAULT_SOUND_VOLUME,
     FALLBACK_MENU_THEME,
@@ -76,6 +77,7 @@ class AppSettings:
     menu_memory_enabled: bool = DEFAULT_MENU_MEMORY_ENABLED
     display_scale: int = DEFAULT_DISPLAY_SCALE
     sound_volume: float = DEFAULT_SOUND_VOLUME
+    display_saturation: float = DEFAULT_DISPLAY_SATURATION
 
 
 @dataclass

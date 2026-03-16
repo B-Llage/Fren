@@ -25,7 +25,13 @@ class PersistenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "save.json"
             pet = Pet(name="Mochi", hunger=8, hygiene=7, happiness=6, health=5, age_ticks=3)
-            settings = AppSettings(menu_theme="diamond_pink", menu_memory_enabled=False, display_scale=3, sound_volume=0.5)
+            settings = AppSettings(
+                menu_theme="diamond_pink",
+                menu_memory_enabled=False,
+                display_scale=3,
+                sound_volume=0.5,
+                display_saturation=1.3,
+            )
 
             with mock.patch("virtual_pet.persistence.load_menu_themes", return_value=make_themes()):
                 save_game_state(pet, settings, path)
@@ -37,6 +43,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertFalse(loaded_settings.menu_memory_enabled)
         self.assertEqual(loaded_settings.display_scale, 3)
         self.assertEqual(loaded_settings.sound_volume, 0.5)
+        self.assertEqual(loaded_settings.display_saturation, 1.3)
 
     def test_legacy_theme_alias_migration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -79,6 +86,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertTrue(settings.menu_memory_enabled)
         self.assertEqual(settings.display_scale, 1)
         self.assertEqual(settings.sound_volume, 1.0)
+        self.assertEqual(settings.display_saturation, 1.0)
 
 
 if __name__ == "__main__":

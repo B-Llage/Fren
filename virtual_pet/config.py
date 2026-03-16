@@ -17,6 +17,13 @@ DEFAULT_DISPLAY_SCALE = 1
 DISPLAY_SCALE_OPTIONS = (1, 2, 3)
 DEFAULT_SOUND_VOLUME = 1.0
 SOUND_VOLUME_OPTIONS = (0.0, 0.25, 0.5, 0.75, 1.0)
+DEFAULT_DISPLAY_SATURATION = 1.0
+DISPLAY_SATURATION_OPTIONS = (
+    ("Normal", 1.0),
+    ("Rich", 1.15),
+    ("Vivid", 1.3),
+    ("Boost", 1.45),
+)
 
 HOME_BACKGROUND_PATH = PROJECT_ROOT / "backgrounds" / "house_kitchen_simple.png"
 BASE_SPRITE_PATH = PROJECT_ROOT / "creatures" / "bunny" / "base_bunny.png"
@@ -107,7 +114,7 @@ MIN_STAT = 0
 STAT_FIELDS = ("hunger", "hygiene", "happiness", "health")
 
 MAIN_MENU_OPTIONS = ("Action", "Status", "Option")
-OPTION_MENU_OPTIONS = ("Theme", "Menu Mem", "Volume", "Res", "Reset")
+OPTION_MENU_OPTIONS = ("Theme", "Menu Mem", "Volume", "Color", "Res", "Reset")
 ACTION_OPTIONS = ("Feed", "Play", "Clean", "Heal")
 PLAY_MENU_OPTIONS = ("Jump Rope",)
 RESET_OPTIONS = ("No", "Yes")

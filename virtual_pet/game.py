@@ -19,7 +19,9 @@ from .config import (
     CLEAN_SCRUB_SOUND_INTERVAL_SECONDS,
     DECAY_TIMER_SECONDS,
     DEFAULT_DISPLAY_SCALE,
+    DEFAULT_DISPLAY_SATURATION,
     DEFAULT_SOUND_VOLUME,
+    DISPLAY_SATURATION_OPTIONS,
     DISPLAY_SCALE_OPTIONS,
     EXTRA_HAPPY_FACE_PATH,
     FACE_SPRITE_PATH,
@@ -118,12 +120,14 @@ class Game:
         self.theme_options = list(self.themes.keys())
         self.resolution_options = list(DISPLAY_SCALE_OPTIONS)
         self.sound_volume_options = list(SOUND_VOLUME_OPTIONS)
+        self.display_saturation_options = [value for _label, value in DISPLAY_SATURATION_OPTIONS]
         self.reset_options = list(RESET_OPTIONS)
         self.state = RuntimeState()
         self.state.selected_theme = self.theme_options.index(self.settings.menu_theme)
         self.state.selected_resolution = self.resolution_options.index(self.settings.display_scale)
         self.state.selected_option_menu = self.clamp_selection(self.state.selected_option_menu, self.option_menu)
         self.apply_sound_volume(self.settings.sound_volume)
+        self.apply_display_saturation(self.settings.display_saturation)
         self.state.pet_wander_x = float(SCREEN_WIDTH // 2)
         self.state.pet_wander_start_x = self.state.pet_wander_x
         self.state.pet_wander_target_x = self.state.pet_wander_x
@@ -161,6 +165,8 @@ class Game:
         return (selected_index + step) % len(options)
 
     def is_option_enabled(self, option_name: str) -> bool:
+        if option_name == "Color":
+            return self.display_output is not None
         if option_name == "Res":
             return self.runtime.allow_display_scale
 
@@ -206,6 +212,38 @@ class Game:
         self.settings.sound_volume = sound_volume
         self.audio.set_master_volume(self.settings.sound_volume)
         logger.info("Applied sound volume %s%%.", int(round(self.settings.sound_volume * 100)))
+
+    def get_display_saturation_label(self) -> str:
+        for label, value in DISPLAY_SATURATION_OPTIONS:
+            if value == self.settings.display_saturation:
+                return label
+
+        return "Normal"
+
+    def apply_display_saturation(self, display_saturation: float) -> None:
+        if display_saturation not in self.display_saturation_options:
+            display_saturation = min(
+                self.display_saturation_options,
+                key=lambda option: abs(option - display_saturation),
+            )
+
+        self.settings.display_saturation = display_saturation
+        if self.display_output is not None:
+            self.display_output.set_saturation(self.settings.display_saturation)
+        logger.info(
+            "Applied display saturation %s (%.2fx).",
+            self.get_display_saturation_label(),
+            self.settings.display_saturation,
+        )
+
+    def cycle_display_saturation(self) -> None:
+        try:
+            current_index = self.display_saturation_options.index(self.settings.display_saturation)
+        except ValueError:
+            current_index = self.display_saturation_options.index(DEFAULT_DISPLAY_SATURATION)
+
+        next_index = (current_index + 1) % len(self.display_saturation_options)
+        self.apply_display_saturation(self.display_saturation_options[next_index])
 
     def cycle_sound_volume(self) -> None:
         try:
@@ -275,6 +313,8 @@ class Game:
                 labels.append(f"Menu Mem: {menu_mem_state}")
             elif option == "Volume":
                 labels.append(f"Vol: {volume_percent}%")
+            elif option == "Color":
+                labels.append(f"Color: {self.get_display_saturation_label()}")
             elif option == "Res":
                 labels.append(f"Res: {self.settings.display_scale}x")
             elif option == "Reset":
@@ -551,6 +591,9 @@ class Game:
                 self.play_sound("setting_change")
             elif selected_option == "Volume":
                 self.cycle_sound_volume()
+                self.play_sound("setting_change")
+            elif selected_option == "Color":
+                self.cycle_display_saturation()
                 self.play_sound("setting_change")
             elif selected_option == "Res":
                 self.play_sound("menu_confirm")

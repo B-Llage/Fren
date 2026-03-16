@@ -39,6 +39,7 @@ class BootstrapTests(unittest.TestCase):
                 self.assertIsNotNone(game.audio)
                 self.assertEqual(game.audio.master_volume, game.settings.sound_volume)
                 self.assertIn("Res", game.option_menu)
+                self.assertNotIn("Color", game.option_menu)
                 played_sounds: list[str] = []
                 game.audio.play = played_sounds.append
                 game.state.menu_state = models_module.MenuState.MAIN_MENU
@@ -98,20 +99,23 @@ class BootstrapTests(unittest.TestCase):
             finally:
                 game.shutdown(save=False)
 
-            hat_game = game_module.Game(
-                runtime=runtime_module.RuntimeConfig(
-                    profile=runtime_module.PROFILE_WAVESHARE_HAT,
-                    fullscreen=True,
-                    hide_mouse=True,
-                    enable_gpio_input=False,
-                    enable_direct_output=False,
-                    allow_display_scale=False,
+            fake_display_backend = mock.Mock()
+            with mock.patch.object(game_module, "create_display_backend", return_value=fake_display_backend):
+                hat_game = game_module.Game(
+                    runtime=runtime_module.RuntimeConfig(
+                        profile=runtime_module.PROFILE_WAVESHARE_HAT,
+                        fullscreen=True,
+                        hide_mouse=True,
+                        enable_gpio_input=False,
+                        enable_direct_output=True,
+                        allow_display_scale=False,
+                    )
                 )
-            )
-            try:
-                self.assertNotIn("Res", hat_game.option_menu)
-            finally:
-                hat_game.shutdown(save=False)
+                try:
+                    self.assertNotIn("Res", hat_game.option_menu)
+                    self.assertIn("Color", hat_game.option_menu)
+                finally:
+                    hat_game.shutdown(save=False)
 
         self.assertIs(wrapper_module.main, main_module.main)
 
