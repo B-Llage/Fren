@@ -34,7 +34,10 @@ If you use `--display-rotation`, the joystick directions are remapped to follow 
 
 ### HAT-only display setting
 
-When the direct Waveshare output backend is active, the in-game `Option` menu includes `Color`, which cycles the panel saturation between `Normal`, `Rich`, `Vivid`, and `Boost`.
+When the direct Waveshare output backend is active, the in-game `Option` menu includes:
+
+- `Color`: cycles panel saturation between `Normal`, `Rich`, `Vivid`, and `Boost`
+- `Contrast`: cycles panel contrast between `Normal`, `Rich`, `Punchy`, and `Arcade`
 
 ### Pi setup
 

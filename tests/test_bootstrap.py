@@ -40,6 +40,7 @@ class BootstrapTests(unittest.TestCase):
                 self.assertEqual(game.audio.master_volume, game.settings.sound_volume)
                 self.assertIn("Res", game.option_menu)
                 self.assertNotIn("Color", game.option_menu)
+                self.assertNotIn("Contrast", game.option_menu)
                 played_sounds: list[str] = []
                 game.audio.play = played_sounds.append
                 game.state.menu_state = models_module.MenuState.MAIN_MENU
@@ -114,6 +115,7 @@ class BootstrapTests(unittest.TestCase):
                 try:
                     self.assertNotIn("Res", hat_game.option_menu)
                     self.assertIn("Color", hat_game.option_menu)
+                    self.assertIn("Contrast", hat_game.option_menu)
                 finally:
                     hat_game.shutdown(save=False)
 

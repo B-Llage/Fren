@@ -5,7 +5,7 @@ import time
 
 import pygame
 
-from .config import SCREEN_HEIGHT, SCREEN_WIDTH
+from .config import DEFAULT_DISPLAY_CONTRAST, SCREEN_HEIGHT, SCREEN_WIDTH
 
 logger = logging.getLogger("virtual_pet")
 
@@ -32,6 +32,8 @@ class DirectSpiDisplay:
         self._last_present_at = 0.0
         self._saturation = 1.0
         self._saturation_scale = 256
+        self._contrast = DEFAULT_DISPLAY_CONTRAST
+        self._contrast_lut = None
 
         self._spi = spidev.SpiDev()
         self._spi.open(WAVESHARE_LCD_SPI_PORT, WAVESHARE_LCD_SPI_CS)
@@ -41,6 +43,7 @@ class DirectSpiDisplay:
         self._dc = OutputDevice(WAVESHARE_LCD_DC_PIN, active_high=True, initial_value=False)
         self._rst = OutputDevice(WAVESHARE_LCD_RST_PIN, active_high=True, initial_value=True)
         self._backlight = OutputDevice(WAVESHARE_LCD_BACKLIGHT_PIN, active_high=True, initial_value=True)
+        self.set_contrast(self._contrast)
 
         self.reset()
         self.initialize()
@@ -50,6 +53,12 @@ class DirectSpiDisplay:
     def set_saturation(self, saturation: float) -> None:
         self._saturation = max(0.5, min(1.6, float(saturation)))
         self._saturation_scale = int(round(self._saturation * 256.0))
+
+    def set_contrast(self, contrast: float) -> None:
+        self._contrast = max(1.0, min(1.6, float(contrast)))
+        values = self._numpy.arange(256, dtype=self._numpy.float32)
+        contrasted = ((values - 128.0) * self._contrast) + 128.0
+        self._contrast_lut = self._numpy.clip(contrasted, 0.0, 255.0).astype(self._numpy.uint8)
 
     def reset(self) -> None:
         self._rst.on()
@@ -121,6 +130,8 @@ class DirectSpiDisplay:
             frame = self._numpy.rot90(frame, k=self._rotation_steps)
         if self._saturation_scale != 256:
             frame = self.apply_saturation(frame)
+        if self._contrast_lut is not None and self._contrast > 1.0:
+            frame = self.apply_contrast(frame)
 
         pixel_data = (
             ((frame[..., 0].astype(self._numpy.uint16) & 0xF8) << 8)
@@ -140,6 +151,9 @@ class DirectSpiDisplay:
         ) >> 8
         saturated = luma[..., None] + (((frame_i32 - luma[..., None]) * self._saturation_scale) >> 8)
         return self._numpy.clip(saturated, 0, 255).astype(self._numpy.uint8)
+
+    def apply_contrast(self, frame: object) -> object:
+        return self._contrast_lut[frame]
 
     def set_window(self, x_start: int, y_start: int, x_end: int, y_end: int) -> None:
         self.write_command(0x2A)

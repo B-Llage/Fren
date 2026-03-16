@@ -6,10 +6,12 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .config import (
+    DEFAULT_DISPLAY_CONTRAST,
     DEFAULT_DISPLAY_SCALE,
     DEFAULT_DISPLAY_SATURATION,
     DEFAULT_MENU_MEMORY_ENABLED,
     DEFAULT_SOUND_VOLUME,
+    DISPLAY_CONTRAST_OPTIONS,
     DISPLAY_SATURATION_OPTIONS,
     DISPLAY_SCALE_OPTIONS,
     FALLBACK_MENU_THEME,
@@ -59,6 +61,16 @@ def normalize_loaded_display_saturation(value) -> float:
     return min(supported_values, key=lambda option: abs(option - numeric_value))
 
 
+def normalize_loaded_display_contrast(value) -> float:
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_DISPLAY_CONTRAST
+
+    supported_values = [option for _label, option in DISPLAY_CONTRAST_OPTIONS]
+    return min(supported_values, key=lambda option: abs(option - numeric_value))
+
+
 def save_game_state(pet: Pet, settings: AppSettings, path: Path = SAVE_PATH) -> None:
     logger.info("Saving pet data to %s", path)
     payload = {
@@ -68,6 +80,7 @@ def save_game_state(pet: Pet, settings: AppSettings, path: Path = SAVE_PATH) -> 
         "display_scale": settings.display_scale,
         "sound_volume": settings.sound_volume,
         "display_saturation": settings.display_saturation,
+        "display_contrast": settings.display_contrast,
     }
     with path.open("w", encoding="utf-8") as file_handle:
         json.dump(payload, file_handle, indent=2)
@@ -91,6 +104,7 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
         display_scale = data.get("display_scale", DEFAULT_DISPLAY_SCALE)
         sound_volume = data.get("sound_volume", DEFAULT_SOUND_VOLUME)
         display_saturation = data.get("display_saturation", DEFAULT_DISPLAY_SATURATION)
+        display_contrast = data.get("display_contrast", DEFAULT_DISPLAY_CONTRAST)
     else:
         pet_data = data
         menu_theme = default_theme
@@ -98,6 +112,7 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
         display_scale = DEFAULT_DISPLAY_SCALE
         sound_volume = DEFAULT_SOUND_VOLUME
         display_saturation = DEFAULT_DISPLAY_SATURATION
+        display_contrast = DEFAULT_DISPLAY_CONTRAST
 
     menu_theme = LEGACY_THEME_ALIASES.get(menu_theme, menu_theme)
     if not isinstance(menu_memory_enabled, bool):
@@ -110,6 +125,7 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
         display_scale = DEFAULT_DISPLAY_SCALE
     sound_volume = normalize_loaded_sound_volume(sound_volume)
     display_saturation = normalize_loaded_display_saturation(display_saturation)
+    display_contrast = normalize_loaded_display_contrast(display_contrast)
     if menu_theme not in available_themes:
         logger.warning("Unknown menu theme '%s'; using default.", menu_theme)
         menu_theme = default_theme if default_theme in available_themes else FALLBACK_MENU_THEME
@@ -129,5 +145,6 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
         display_scale=display_scale,
         sound_volume=sound_volume,
         display_saturation=display_saturation,
+        display_contrast=display_contrast,
     )
     return pet, settings

@@ -18,9 +18,11 @@ from .config import (
     CLEAN_SCRUB_DURATION_SECONDS,
     CLEAN_SCRUB_SOUND_INTERVAL_SECONDS,
     DECAY_TIMER_SECONDS,
+    DEFAULT_DISPLAY_CONTRAST,
     DEFAULT_DISPLAY_SCALE,
     DEFAULT_DISPLAY_SATURATION,
     DEFAULT_SOUND_VOLUME,
+    DISPLAY_CONTRAST_OPTIONS,
     DISPLAY_SATURATION_OPTIONS,
     DISPLAY_SCALE_OPTIONS,
     EXTRA_HAPPY_FACE_PATH,
@@ -133,6 +135,7 @@ class Game:
         self.theme_options = list(self.themes.keys())
         self.resolution_options = list(DISPLAY_SCALE_OPTIONS)
         self.sound_volume_options = list(SOUND_VOLUME_OPTIONS)
+        self.display_contrast_options = [value for _label, value in DISPLAY_CONTRAST_OPTIONS]
         self.display_saturation_options = [value for _label, value in DISPLAY_SATURATION_OPTIONS]
         self.reset_options = list(RESET_OPTIONS)
         self.state = RuntimeState()
@@ -141,6 +144,7 @@ class Game:
         self.state.selected_option_menu = self.clamp_selection(self.state.selected_option_menu, self.option_menu)
         self.apply_sound_volume(self.settings.sound_volume)
         self.apply_display_saturation(self.settings.display_saturation)
+        self.apply_display_contrast(self.settings.display_contrast)
         self.state.pet_wander_x = float(SCREEN_WIDTH // 2)
         self.state.pet_wander_start_x = self.state.pet_wander_x
         self.state.pet_wander_target_x = self.state.pet_wander_x
@@ -179,6 +183,8 @@ class Game:
 
     def is_option_enabled(self, option_name: str) -> bool:
         if option_name == "Color":
+            return self.display_output is not None
+        if option_name == "Contrast":
             return self.display_output is not None
         if option_name == "Res":
             return self.runtime.allow_display_scale
@@ -233,6 +239,13 @@ class Game:
 
         return "Normal"
 
+    def get_display_contrast_label(self) -> str:
+        for label, value in DISPLAY_CONTRAST_OPTIONS:
+            if value == self.settings.display_contrast:
+                return label
+
+        return "Rich"
+
     def apply_display_saturation(self, display_saturation: float) -> None:
         if display_saturation not in self.display_saturation_options:
             display_saturation = min(
@@ -257,6 +270,31 @@ class Game:
 
         next_index = (current_index + 1) % len(self.display_saturation_options)
         self.apply_display_saturation(self.display_saturation_options[next_index])
+
+    def apply_display_contrast(self, display_contrast: float) -> None:
+        if display_contrast not in self.display_contrast_options:
+            display_contrast = min(
+                self.display_contrast_options,
+                key=lambda option: abs(option - display_contrast),
+            )
+
+        self.settings.display_contrast = display_contrast
+        if self.display_output is not None:
+            self.display_output.set_contrast(self.settings.display_contrast)
+        logger.info(
+            "Applied display contrast %s (%.2fx).",
+            self.get_display_contrast_label(),
+            self.settings.display_contrast,
+        )
+
+    def cycle_display_contrast(self) -> None:
+        try:
+            current_index = self.display_contrast_options.index(self.settings.display_contrast)
+        except ValueError:
+            current_index = self.display_contrast_options.index(DEFAULT_DISPLAY_CONTRAST)
+
+        next_index = (current_index + 1) % len(self.display_contrast_options)
+        self.apply_display_contrast(self.display_contrast_options[next_index])
 
     def cycle_sound_volume(self) -> None:
         try:
@@ -328,6 +366,8 @@ class Game:
                 labels.append(f"Vol: {volume_percent}%")
             elif option == "Color":
                 labels.append(f"Color: {self.get_display_saturation_label()}")
+            elif option == "Contrast":
+                labels.append(f"Contrast: {self.get_display_contrast_label()}")
             elif option == "Res":
                 labels.append(f"Res: {self.settings.display_scale}x")
             elif option == "Reset":
@@ -607,6 +647,9 @@ class Game:
                 self.play_sound("setting_change")
             elif selected_option == "Color":
                 self.cycle_display_saturation()
+                self.play_sound("setting_change")
+            elif selected_option == "Contrast":
+                self.cycle_display_contrast()
                 self.play_sound("setting_change")
             elif selected_option == "Res":
                 self.play_sound("menu_confirm")

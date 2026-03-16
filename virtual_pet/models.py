@@ -8,6 +8,7 @@ from pathlib import Path
 from .config import (
     ACTIONS_PRIMARY_AMOUNT,
     ACTIONS_SECONDARY_AMOUNT,
+    DEFAULT_DISPLAY_CONTRAST,
     DEFAULT_DISPLAY_SCALE,
     DEFAULT_DISPLAY_SATURATION,
     DEFAULT_MENU_MEMORY_ENABLED,
@@ -78,6 +79,7 @@ class AppSettings:
     display_scale: int = DEFAULT_DISPLAY_SCALE
     sound_volume: float = DEFAULT_SOUND_VOLUME
     display_saturation: float = DEFAULT_DISPLAY_SATURATION
+    display_contrast: float = DEFAULT_DISPLAY_CONTRAST
 
 
 @dataclass

@@ -31,6 +31,7 @@ class PersistenceTests(unittest.TestCase):
                 display_scale=3,
                 sound_volume=0.5,
                 display_saturation=1.3,
+                display_contrast=1.45,
             )
 
             with mock.patch("virtual_pet.persistence.load_menu_themes", return_value=make_themes()):
@@ -44,6 +45,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(loaded_settings.display_scale, 3)
         self.assertEqual(loaded_settings.sound_volume, 0.5)
         self.assertEqual(loaded_settings.display_saturation, 1.3)
+        self.assertEqual(loaded_settings.display_contrast, 1.45)
 
     def test_legacy_theme_alias_migration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -87,6 +89,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(settings.display_scale, 1)
         self.assertEqual(settings.sound_volume, 1.0)
         self.assertEqual(settings.display_saturation, 1.0)
+        self.assertEqual(settings.display_contrast, 1.15)
 
 
 if __name__ == "__main__":
