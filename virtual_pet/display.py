@@ -51,13 +51,22 @@ class DirectSpiDisplay:
         logger.info("Initialized direct SPI output for the Waveshare ST7789 display.")
 
     def set_saturation(self, saturation: float) -> None:
-        self._saturation = max(0.5, min(1.6, float(saturation)))
-        self._saturation_scale = int(round(self._saturation * 256.0))
+        self._saturation = max(0.5, min(1.8, float(saturation)))
+        effective_saturation = 1.0 + ((self._saturation - 1.0) * 1.8)
+        effective_saturation = max(0.5, min(2.4, effective_saturation))
+        self._saturation_scale = int(round(effective_saturation * 256.0))
 
     def set_contrast(self, contrast: float) -> None:
-        self._contrast = max(1.0, min(1.6, float(contrast)))
+        self._contrast = max(1.0, min(1.8, float(contrast)))
+        effective_contrast = 1.0 + ((self._contrast - 1.0) * 1.8)
+        effective_contrast = max(1.0, min(2.4, effective_contrast))
         values = self._numpy.arange(256, dtype=self._numpy.float32)
-        contrasted = ((values - 128.0) * self._contrast) + 128.0
+        contrasted = ((values - 128.0) * effective_contrast) + 124.0
+        gamma = 1.0 + ((effective_contrast - 1.0) * 0.1)
+        contrasted = self._numpy.power(
+            self._numpy.clip(contrasted, 0.0, 255.0) / 255.0,
+            gamma,
+        ) * 255.0
         self._contrast_lut = self._numpy.clip(contrasted, 0.0, 255.0).astype(self._numpy.uint8)
 
     def reset(self) -> None:

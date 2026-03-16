@@ -88,8 +88,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertTrue(settings.menu_memory_enabled)
         self.assertEqual(settings.display_scale, 1)
         self.assertEqual(settings.sound_volume, 1.0)
-        self.assertEqual(settings.display_saturation, 1.0)
-        self.assertEqual(settings.display_contrast, 1.15)
+        self.assertEqual(settings.display_saturation, 1.3)
+        self.assertEqual(settings.display_contrast, 1.3)
 
 
 if __name__ == "__main__":

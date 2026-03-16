@@ -10,5 +10,7 @@
   "menu_theme": "dusk_lime",
   "menu_memory_enabled": true,
   "display_scale": 2,
-  "sound_volume": 0.25
+  "sound_volume": 0.25,
+  "display_saturation": 1.3,
+  "display_contrast": 1.3
 }
