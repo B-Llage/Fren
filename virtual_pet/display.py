@@ -16,6 +16,7 @@ WAVESHARE_LCD_RST_PIN = 27
 WAVESHARE_LCD_BACKLIGHT_PIN = 24
 WAVESHARE_LCD_SPI_SPEED_HZ = 40_000_000
 WAVESHARE_LCD_INIT_DELAY_SECONDS = 0.12
+WAVESHARE_LCD_TARGET_FPS = 15
 
 
 class DirectSpiDisplay:
@@ -27,6 +28,8 @@ class DirectSpiDisplay:
         self._numpy = numpy
         self._rotation_steps = (rotation // 90) % 4
         self._clear_frame = bytes(SCREEN_WIDTH * SCREEN_HEIGHT * 2)
+        self._frame_interval_seconds = 1.0 / WAVESHARE_LCD_TARGET_FPS
+        self._last_present_at = 0.0
 
         self._spi = spidev.SpiDev()
         self._spi.open(WAVESHARE_LCD_SPI_PORT, WAVESHARE_LCD_SPI_CS)
@@ -101,6 +104,11 @@ class DirectSpiDisplay:
         self.write_frame(self._clear_frame)
 
     def present(self, surface: pygame.Surface) -> None:
+        now = time.monotonic()
+        if self._last_present_at and (now - self._last_present_at) < self._frame_interval_seconds:
+            return
+
+        self._last_present_at = now
         rgb_bytes = pygame.image.tostring(surface, "RGB")
         frame = self._numpy.frombuffer(rgb_bytes, dtype=self._numpy.uint8).reshape((SCREEN_HEIGHT, SCREEN_WIDTH, 3))
         if self._rotation_steps:

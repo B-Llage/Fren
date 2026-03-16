@@ -123,7 +123,7 @@ class GameRenderer:
         face_sprite_override: pygame.Surface | None = None,
         facing_left_override: bool | None = None,
     ) -> None:
-        logger.info("Drawing pet...")
+        logger.debug("Drawing pet...")
         mood = pet.get_mood()
         width, height = size
         facing_left = state.pet_facing_left if facing_left_override is None else facing_left_override
@@ -182,7 +182,7 @@ class GameRenderer:
             pygame.draw.arc(self.screen, BLACK, mouth_rect, 0, 3.14, 2)
 
     def draw_home_screen(self, pet: Pet, settings: AppSettings, state: RuntimeState) -> None:
-        logger.info("Drawing home screen...")
+        logger.debug("Drawing home screen...")
         if self.home_background is not None:
             self.screen.blit(self.home_background, (0, 0))
         else:
@@ -206,7 +206,7 @@ class GameRenderer:
         state: RuntimeState,
         food_options: list[FoodItem],
     ) -> None:
-        logger.info("Drawing eating screen...")
+        logger.debug("Drawing eating screen...")
         if self.home_background is not None:
             self.screen.blit(self.home_background, (0, 0))
         else:
@@ -260,7 +260,7 @@ class GameRenderer:
             self.draw_bottom_cropped_sprite(food_option.sprite, food_rect, visible_food_height)
 
     def draw_cleaning_screen(self, pet: Pet, settings: AppSettings, state: RuntimeState) -> None:
-        logger.info("Drawing cleaning screen...")
+        logger.debug("Drawing cleaning screen...")
         if self.home_background is not None:
             self.screen.blit(self.home_background, (0, 0))
         else:
@@ -298,7 +298,7 @@ class GameRenderer:
         self.screen.blit(self.soap_sprite, soap_rect)
 
     def draw_celebration_screen(self, pet: Pet, settings: AppSettings, state: RuntimeState) -> None:
-        logger.info("Drawing celebration screen...")
+        logger.debug("Drawing celebration screen...")
         if self.home_background is not None:
             self.screen.blit(self.home_background, (0, 0))
         else:
@@ -312,7 +312,7 @@ class GameRenderer:
         self.draw_pet(pet, state, pet_center, HOME_PET_SIZE, face_sprite_override=face_override, facing_left_override=False)
 
     def draw_jump_rope_screen(self, pet: Pet, settings: AppSettings, state: RuntimeState) -> None:
-        logger.info("Drawing jump rope screen...")
+        logger.debug("Drawing jump rope screen...")
         if self.home_background is not None:
             self.screen.blit(self.home_background, (0, 0))
         else:
@@ -547,7 +547,7 @@ class GameRenderer:
         pygame.draw.line(self.screen, WHITE, (18, y), (SCREEN_WIDTH - 18, y), 1)
 
     def draw_fullscreen_menu(self, settings: AppSettings, title: str, options: list[str], selected_index: int) -> None:
-        logger.info("Drawing full-screen menu: %s", title)
+        logger.debug("Drawing full-screen menu: %s", title)
         self.screen.fill(BG)
         palette = self.get_menu_theme_palette(settings)
 
@@ -589,7 +589,7 @@ class GameRenderer:
             draw_text_centered(self.screen, page_text, self.small_font, palette.muted, SCREEN_WIDTH // 2, footer_y)
 
     def draw_food_grid_screen(self, settings: AppSettings, food_options: list[FoodItem], selected_food: int) -> None:
-        logger.info("Drawing food grid screen...")
+        logger.debug("Drawing food grid screen...")
         self.screen.fill(BG)
         palette = self.get_menu_theme_palette(settings)
 
@@ -656,7 +656,7 @@ class GameRenderer:
             )
 
     def draw_status_screen(self, pet: Pet, settings: AppSettings) -> None:
-        logger.info("Drawing status screen...")
+        logger.debug("Drawing status screen...")
         self.screen.fill(BG)
         palette = self.get_menu_theme_palette(settings)
 
@@ -693,7 +693,7 @@ class GameRenderer:
             )
 
     def draw_reset_confirm_screen(self, selected_reset: int, reset_options: list[str]) -> None:
-        logger.info("Drawing reset confirmation screen...")
+        logger.debug("Drawing reset confirmation screen...")
         self.screen.fill(BG)
 
         panel_rect = pygame.Rect(6, 6, SCREEN_WIDTH - 12, SCREEN_HEIGHT - 12)

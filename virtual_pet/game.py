@@ -828,7 +828,7 @@ class Game:
             self.complete_action_celebration()
 
     def update(self, dt: float) -> None:
-        logger.info("Updating game state with dt=%.4f", dt)
+        logger.debug("Updating game state with dt=%.4f", dt)
         previous_menu_state = self.state.menu_state
         self.update_eating_animation(dt)
         self.update_cleaning_animation(dt)
@@ -843,7 +843,7 @@ class Game:
             self.state.decay_accumulator = 0.0
 
     def draw_ui(self) -> None:
-        logger.info("Drawing UI...")
+        logger.debug("Drawing UI...")
         if self.state.menu_state == MenuState.HOME:
             self.renderer.draw_home_screen(self.pet, self.settings, self.state)
             return
@@ -902,13 +902,13 @@ class Game:
             self.renderer.draw_reset_confirm_screen(self.state.selected_reset, self.reset_options)
 
     def handle_events(self) -> None:
-        logger.info("Polling events...")
+        logger.debug("Polling events...")
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 logger.info("Quit event received.")
                 self.state.running = False
             elif event.type == pygame.KEYDOWN:
-                logger.info("Key pressed: %s", event.key)
+                logger.debug("Key pressed: %s", event.key)
                 self.handle_keyboard_input(event.key)
 
         if self.hardware_input is not None:

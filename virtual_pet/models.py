@@ -133,7 +133,7 @@ class Pet:
         self.health = max(MIN_STAT, min(MAX_STAT, self.health))
 
     def get_mood(self) -> PetMood:
-        logger.info("Evaluating pet mood...")
+        logger.debug("Evaluating pet mood...")
         avg = (self.hunger + self.hygiene + self.happiness + self.health) / 4
 
         if self.health <= 2:
