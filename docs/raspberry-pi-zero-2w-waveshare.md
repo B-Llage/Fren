@@ -3,7 +3,7 @@
 The game now supports two runtime modes from the same entry point:
 
 - Desktop: normal `pygame` window with keyboard input.
-- Waveshare HAT: optional direct ST7789 SPI output plus GPIO button input.
+- Waveshare HAT: direct ST7789 SPI output plus GPIO button input.
 
 ### Runtime behavior
 
@@ -39,8 +39,7 @@ python3 virtual_pet_template.py --platform waveshare-hat --windowed --no-direct-
 
 ```bash
 sudo apt update
-sudo apt install -y python3-pygame python3-gpiozero python3-lgpio python3-pil python3-numpy python3-spidev python3-pip
-python3 -m pip install --break-system-packages st7789
+sudo apt install -y python3-pygame python3-gpiozero python3-lgpio python3-numpy python3-spidev
 ```
 
 3. Copy this repo to the Pi.

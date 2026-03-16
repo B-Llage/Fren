@@ -951,6 +951,8 @@ class Game:
         if save:
             logger.info("Saving state before quit...")
             save_game_state(self.pet, self.settings)
+        if self.display_output is not None:
+            self.display_output.close()
         if self.hardware_input is not None:
             self.hardware_input.close()
         pygame.quit()
