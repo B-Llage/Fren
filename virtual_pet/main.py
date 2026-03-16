@@ -20,10 +20,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     logger.info("Starting virtual pet template...")
     runtime = build_runtime_config(argv)
     logger.info(
-        "Runtime profile=%s fullscreen=%s gpio_input=%s model=%s",
+        "Runtime profile=%s fullscreen=%s gpio_input=%s direct_output=%s rotation=%s model=%s",
         runtime.profile,
         runtime.fullscreen,
         runtime.enable_gpio_input,
+        runtime.enable_direct_output,
+        runtime.display_rotation,
         runtime.detected_model or "n/a",
     )
 

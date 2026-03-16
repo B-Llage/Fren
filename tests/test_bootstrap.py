@@ -104,6 +104,7 @@ class BootstrapTests(unittest.TestCase):
                     fullscreen=True,
                     hide_mouse=True,
                     enable_gpio_input=False,
+                    enable_direct_output=False,
                     allow_display_scale=False,
                 )
             )

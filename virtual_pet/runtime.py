@@ -19,7 +19,9 @@ class RuntimeConfig:
     fullscreen: bool = False
     hide_mouse: bool = False
     enable_gpio_input: bool = False
+    enable_direct_output: bool = False
     allow_display_scale: bool = True
+    display_rotation: int = 0
     detected_model: str | None = None
 
 
@@ -64,6 +66,23 @@ def create_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable GPIO button input.",
     )
+    parser.add_argument(
+        "--direct-output",
+        action="store_true",
+        help="Send frames directly to the Waveshare ST7789 display over SPI.",
+    )
+    parser.add_argument(
+        "--no-direct-output",
+        action="store_true",
+        help="Disable direct SPI display output.",
+    )
+    parser.add_argument(
+        "--display-rotation",
+        type=int,
+        choices=(0, 90, 180, 270),
+        default=0,
+        help="Rotate direct SPI output. Defaults to 0.",
+    )
     return parser
 
 
@@ -80,6 +99,9 @@ def build_runtime_config(
 
     if args.gpio_input and args.no_gpio_input:
         parser.error("Choose either --gpio-input or --no-gpio-input, not both.")
+
+    if args.direct_output and args.no_direct_output:
+        parser.error("Choose either --direct-output or --no-direct-output, not both.")
 
     resolved_model = detect_raspberry_pi_model() if detected_model is _AUTO_DETECT else detected_model
 
@@ -101,11 +123,20 @@ def build_runtime_config(
     else:
         enable_gpio_input = profile == PROFILE_WAVESHARE_HAT
 
+    if args.direct_output:
+        enable_direct_output = True
+    elif args.no_direct_output:
+        enable_direct_output = False
+    else:
+        enable_direct_output = profile == PROFILE_WAVESHARE_HAT
+
     return RuntimeConfig(
         profile=profile,
         fullscreen=fullscreen,
         hide_mouse=fullscreen,
         enable_gpio_input=enable_gpio_input,
-        allow_display_scale=not fullscreen,
+        enable_direct_output=enable_direct_output,
+        allow_display_scale=not fullscreen and not enable_direct_output,
+        display_rotation=args.display_rotation,
         detected_model=resolved_model if isinstance(resolved_model, str) else None,
     )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import random
 
 import pygame
@@ -56,6 +57,7 @@ from .config import (
     WINDOW_TITLE,
 )
 from .content import load_background_image, load_food_items, load_menu_themes, load_pet_sprite, load_prop_sprite
+from .display import create_display_backend
 from .input import INPUT_BACK, INPUT_CONFIRM, INPUT_NEXT, INPUT_PREVIOUS, create_input_backend
 from .models import FoodItem, MenuState, Pet, RuntimeState
 from .persistence import load_game_state, save_game_state
@@ -68,6 +70,12 @@ logger = logging.getLogger("virtual_pet")
 class Game:
     def __init__(self, runtime: RuntimeConfig | None = None) -> None:
         self.runtime = runtime or build_runtime_config(())
+        self.display_output = create_display_backend(
+            self.runtime.enable_direct_output,
+            rotation=self.runtime.display_rotation,
+        )
+        if self.runtime.enable_direct_output and self.display_output is not None:
+            os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
         logger.info("Initializing pygame...")
         pre_init_audio()
         pygame.init()
@@ -160,7 +168,10 @@ class Game:
     def refresh_window(self) -> None:
         window_flags = getattr(pygame, "FULLSCREEN", 0) if self.runtime.fullscreen else 0
         requested_size = (SCREEN_WIDTH * self.settings.display_scale, SCREEN_HEIGHT * self.settings.display_scale)
-        if self.runtime.fullscreen:
+        if self.display_output is not None:
+            requested_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
+            window_flags = 0
+        elif self.runtime.fullscreen:
             requested_size = (0, 0)
 
         self.window = pygame.display.set_mode(requested_size, window_flags)
@@ -176,8 +187,9 @@ class Game:
         self.settings.display_scale = display_scale
         self.refresh_window()
         logger.info(
-            "Applied display mode fullscreen=%s scale=%sx (%sx%s).",
+            "Applied display mode fullscreen=%s direct_output=%s scale=%sx (%sx%s).",
             self.runtime.fullscreen,
+            self.display_output is not None,
             self.settings.display_scale,
             *self.window_size,
         )
@@ -947,6 +959,8 @@ class Game:
                 self.handle_events()
                 self.update(dt)
                 self.draw_ui()
+                if self.display_output is not None:
+                    self.display_output.present(self.screen)
                 if self.window_size == self.screen.get_size():
                     self.window.blit(self.screen, (0, 0))
                 else:

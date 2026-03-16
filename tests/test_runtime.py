@@ -14,6 +14,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.profile, PROFILE_DESKTOP)
         self.assertFalse(config.fullscreen)
         self.assertFalse(config.enable_gpio_input)
+        self.assertFalse(config.enable_direct_output)
         self.assertTrue(config.allow_display_scale)
 
     def test_auto_detects_waveshare_hat_profile_on_raspberry_pi(self) -> None:
@@ -22,17 +23,19 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.profile, PROFILE_WAVESHARE_HAT)
         self.assertTrue(config.fullscreen)
         self.assertTrue(config.enable_gpio_input)
+        self.assertTrue(config.enable_direct_output)
         self.assertFalse(config.allow_display_scale)
 
     def test_windowed_mode_reenables_display_scale(self) -> None:
         config = build_runtime_config(
-            ["--windowed"],
+            ["--windowed", "--no-direct-output"],
             detected_model="Raspberry Pi Zero 2 W Rev 1.0",
         )
 
         self.assertEqual(config.profile, PROFILE_WAVESHARE_HAT)
         self.assertFalse(config.fullscreen)
         self.assertTrue(config.enable_gpio_input)
+        self.assertFalse(config.enable_direct_output)
         self.assertTrue(config.allow_display_scale)
 
     def test_detect_raspberry_pi_model_strips_trailing_nulls(self) -> None:
