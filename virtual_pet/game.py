@@ -87,6 +87,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self._is_shutdown = False
         self.hardware_input = create_input_backend(self.runtime.enable_gpio_input)
+        self.refresh_window(DEFAULT_DISPLAY_SCALE)
 
         mouse = getattr(pygame, "mouse", None)
         if mouse is not None and hasattr(mouse, "set_visible"):
@@ -165,9 +166,13 @@ class Game:
 
         return True
 
-    def refresh_window(self) -> None:
+    def refresh_window(self, display_scale: int | None = None) -> None:
         window_flags = getattr(pygame, "FULLSCREEN", 0) if self.runtime.fullscreen else 0
-        requested_size = (SCREEN_WIDTH * self.settings.display_scale, SCREEN_HEIGHT * self.settings.display_scale)
+        scale = DEFAULT_DISPLAY_SCALE if display_scale is None else display_scale
+        if display_scale is None and hasattr(self, "settings"):
+            scale = self.settings.display_scale
+
+        requested_size = (SCREEN_WIDTH * scale, SCREEN_HEIGHT * scale)
         if self.display_output is not None:
             requested_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
             window_flags = 0
