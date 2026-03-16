@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from virtual_pet.input import INPUT_BACK, INPUT_CONFIRM, INPUT_DOWN, INPUT_LEFT, INPUT_RIGHT, INPUT_UP, WaveshareHatInput
+from virtual_pet.input import INPUT_BACK, INPUT_CONFIRM, INPUT_DOWN, INPUT_LEFT, INPUT_NEXT, INPUT_RIGHT, INPUT_UP, WaveshareHatInput
 
 
 class FakeButton:
@@ -44,6 +44,12 @@ class WaveshareHatInputTests(unittest.TestCase):
         buttons[13].is_pressed = False
         buttons[16].is_pressed = True
         self.assertEqual(backend.poll_actions(), [INPUT_BACK])
+
+    def test_key1_cycles_forward(self) -> None:
+        backend, buttons = self.build_backend()
+
+        buttons[21].is_pressed = True
+        self.assertEqual(backend.poll_actions(), [INPUT_NEXT])
 
     def test_close_closes_all_buttons(self) -> None:
         backend, buttons = self.build_backend()

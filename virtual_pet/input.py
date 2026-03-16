@@ -28,7 +28,7 @@ WAVESHARE_HAT_BUTTONS = (
     ButtonMapping("joy_left", 5, (INPUT_LEFT,)),
     ButtonMapping("joy_right", 26, (INPUT_RIGHT,)),
     ButtonMapping("joy_press", 13, (INPUT_CONFIRM,)),
-    ButtonMapping("key1", 21, (INPUT_PREVIOUS,)),
+    ButtonMapping("key1", 21, (INPUT_NEXT,)),
     ButtonMapping("key2", 20, (INPUT_CONFIRM,)),
     ButtonMapping("key3", 16, (INPUT_BACK,)),
 )

@@ -25,8 +25,8 @@ python3 virtual_pet_template.py --platform waveshare-hat --windowed --no-direct-
 - Desktop confirm: `W`, `Enter`, `Space`
 - Desktop back: `E`, `Escape`, `Backspace`
 
-- HAT previous: joystick `Up` or `Left`, `KEY1`
-- HAT next: joystick `Down` or `Right`
+- HAT previous: joystick `Up` or `Left`
+- HAT next: joystick `Down` or `Right`, `KEY1`
 - HAT confirm: joystick press, `KEY2`
 - HAT back: `KEY3`
 
