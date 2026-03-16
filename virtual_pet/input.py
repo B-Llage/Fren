@@ -5,6 +5,10 @@ from dataclasses import dataclass
 
 logger = logging.getLogger("virtual_pet")
 
+INPUT_UP = "up"
+INPUT_DOWN = "down"
+INPUT_LEFT = "left"
+INPUT_RIGHT = "right"
 INPUT_PREVIOUS = "previous"
 INPUT_NEXT = "next"
 INPUT_CONFIRM = "confirm"
@@ -19,10 +23,10 @@ class ButtonMapping:
 
 
 WAVESHARE_HAT_BUTTONS = (
-    ButtonMapping("joy_up", 6, (INPUT_PREVIOUS,)),
-    ButtonMapping("joy_down", 19, (INPUT_NEXT,)),
-    ButtonMapping("joy_left", 5, (INPUT_PREVIOUS,)),
-    ButtonMapping("joy_right", 26, (INPUT_NEXT,)),
+    ButtonMapping("joy_up", 6, (INPUT_UP,)),
+    ButtonMapping("joy_down", 19, (INPUT_DOWN,)),
+    ButtonMapping("joy_left", 5, (INPUT_LEFT,)),
+    ButtonMapping("joy_right", 26, (INPUT_RIGHT,)),
     ButtonMapping("joy_press", 13, (INPUT_CONFIRM,)),
     ButtonMapping("key1", 21, (INPUT_PREVIOUS,)),
     ButtonMapping("key2", 20, (INPUT_CONFIRM,)),
@@ -31,10 +35,11 @@ WAVESHARE_HAT_BUTTONS = (
 
 
 class WaveshareHatInput:
-    def __init__(self, button_factory=None) -> None:
+    def __init__(self, button_factory=None, rotation: int = 0) -> None:
         if button_factory is None:
             from gpiozero import Button as button_factory
 
+        self._rotation = rotation % 360
         self._buttons: list[tuple[ButtonMapping, object]] = []
         self._pressed_states: dict[str, bool] = {}
         for mapping in WAVESHARE_HAT_BUTTONS:
@@ -50,9 +55,45 @@ class WaveshareHatInput:
             is_pressed = self._is_pressed(button)
             was_pressed = self._pressed_states[mapping.name]
             if is_pressed and not was_pressed:
-                actions.extend(mapping.actions)
+                actions.extend(self.rotate_actions(mapping.actions))
             self._pressed_states[mapping.name] = is_pressed
         return actions
+
+    def rotate_actions(self, actions: tuple[str, ...]) -> list[str]:
+        rotated_actions: list[str] = []
+        for action in actions:
+            rotated_actions.append(self.rotate_action(action))
+        return rotated_actions
+
+    def rotate_action(self, action: str) -> str:
+        if self._rotation == 0:
+            return action
+
+        if self._rotation == 90:
+            return {
+                INPUT_UP: INPUT_RIGHT,
+                INPUT_RIGHT: INPUT_DOWN,
+                INPUT_DOWN: INPUT_LEFT,
+                INPUT_LEFT: INPUT_UP,
+            }.get(action, action)
+
+        if self._rotation == 180:
+            return {
+                INPUT_UP: INPUT_DOWN,
+                INPUT_RIGHT: INPUT_LEFT,
+                INPUT_DOWN: INPUT_UP,
+                INPUT_LEFT: INPUT_RIGHT,
+            }.get(action, action)
+
+        if self._rotation == 270:
+            return {
+                INPUT_UP: INPUT_LEFT,
+                INPUT_LEFT: INPUT_DOWN,
+                INPUT_DOWN: INPUT_RIGHT,
+                INPUT_RIGHT: INPUT_UP,
+            }.get(action, action)
+
+        return action
 
     def close(self) -> None:
         for _mapping, button in self._buttons:
@@ -65,12 +106,12 @@ class WaveshareHatInput:
         return bool(getattr(button, "is_pressed", False))
 
 
-def create_input_backend(enable_gpio_input: bool) -> WaveshareHatInput | None:
+def create_input_backend(enable_gpio_input: bool, rotation: int = 0) -> WaveshareHatInput | None:
     if not enable_gpio_input:
         return None
 
     try:
-        return WaveshareHatInput()
+        return WaveshareHatInput(rotation=rotation)
     except ImportError:
         logger.warning("GPIO input requested, but gpiozero is not installed. Falling back to keyboard input.")
     except Exception:

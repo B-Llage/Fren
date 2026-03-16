@@ -60,7 +60,17 @@ from .config import (
 )
 from .content import load_background_image, load_food_items, load_menu_themes, load_pet_sprite, load_prop_sprite
 from .display import create_display_backend
-from .input import INPUT_BACK, INPUT_CONFIRM, INPUT_NEXT, INPUT_PREVIOUS, create_input_backend
+from .input import (
+    INPUT_BACK,
+    INPUT_CONFIRM,
+    INPUT_DOWN,
+    INPUT_LEFT,
+    INPUT_NEXT,
+    INPUT_PREVIOUS,
+    INPUT_RIGHT,
+    INPUT_UP,
+    create_input_backend,
+)
 from .models import FoodItem, MenuState, Pet, RuntimeState
 from .persistence import load_game_state, save_game_state
 from .renderer import GameRenderer
@@ -88,7 +98,10 @@ class Game:
         self.window_size = self.screen.get_size()
         self.clock = pygame.time.Clock()
         self._is_shutdown = False
-        self.hardware_input = create_input_backend(self.runtime.enable_gpio_input)
+        self.hardware_input = create_input_backend(
+            self.runtime.enable_gpio_input,
+            rotation=self.runtime.display_rotation,
+        )
         self.refresh_window(DEFAULT_DISPLAY_SCALE)
 
         mouse = getattr(pygame, "mouse", None)
@@ -972,6 +985,10 @@ class Game:
         if action == INPUT_NEXT:
             self.cycle_selection(1)
         elif action == INPUT_PREVIOUS:
+            self.cycle_selection(-1)
+        elif action in (INPUT_DOWN, INPUT_RIGHT):
+            self.cycle_selection(1)
+        elif action in (INPUT_UP, INPUT_LEFT):
             self.cycle_selection(-1)
         elif action == INPUT_CONFIRM:
             self.confirm_selection()

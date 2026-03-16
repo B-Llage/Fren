@@ -30,6 +30,8 @@ python3 virtual_pet_template.py --platform waveshare-hat --windowed --no-direct-
 - HAT confirm: joystick press, `KEY2`
 - HAT back: `KEY3`
 
+If you use `--display-rotation`, the joystick directions are remapped to follow the rotated screen.
+
 ### HAT-only display setting
 
 When the direct Waveshare output backend is active, the in-game `Option` menu includes `Color`, which cycles the panel saturation between `Normal`, `Rich`, `Vivid`, and `Boost`.
