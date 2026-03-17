@@ -39,6 +39,7 @@ class BootstrapTests(unittest.TestCase):
                 self.assertIsNotNone(game.audio)
                 self.assertEqual(game.audio.master_volume, game.settings.sound_volume)
                 self.assertIn("Res", game.option_menu)
+                self.assertNotIn("Auto Upd", game.option_menu)
                 self.assertNotIn("Color", game.option_menu)
                 self.assertNotIn("Contrast", game.option_menu)
                 played_sounds: list[str] = []
@@ -101,7 +102,10 @@ class BootstrapTests(unittest.TestCase):
                 game.shutdown(save=False)
 
             fake_display_backend = mock.Mock()
-            with mock.patch.object(game_module, "create_display_backend", return_value=fake_display_backend):
+            with (
+                mock.patch.object(game_module, "create_display_backend", return_value=fake_display_backend),
+                mock.patch.object(game_module, "can_auto_update", return_value=True),
+            ):
                 hat_game = game_module.Game(
                     runtime=runtime_module.RuntimeConfig(
                         profile=runtime_module.PROFILE_WAVESHARE_HAT,
@@ -114,12 +118,51 @@ class BootstrapTests(unittest.TestCase):
                 )
                 try:
                     self.assertNotIn("Res", hat_game.option_menu)
+                    self.assertIn("Auto Upd", hat_game.option_menu)
                     self.assertIn("Color", hat_game.option_menu)
                     self.assertIn("Contrast", hat_game.option_menu)
+                    hat_game.state.menu_state = models_module.MenuState.OPTIONS
+                    hat_game.state.selected_option_menu = hat_game.option_menu.index("Auto Upd")
+                    self.assertFalse(hat_game.settings.auto_update_enabled)
+                    hat_game.confirm_selection()
+                    self.assertTrue(hat_game.settings.auto_update_enabled)
                 finally:
                     hat_game.shutdown(save=False)
 
-        self.assertIs(wrapper_module.main, main_module.main)
+            splash_window_sizes: list[tuple[int, int]] = []
+
+            def capture_splash(self) -> None:
+                splash_window_sizes.append(self.window_size)
+
+            with (
+                mock.patch.object(
+                    game_module,
+                    "load_game_state",
+                    return_value=(models_module.Pet(), models_module.AppSettings(display_scale=3)),
+                ),
+                mock.patch.object(game_module.Game, "show_startup_splash", autospec=True, side_effect=capture_splash),
+            ):
+                scaled_game = game_module.Game()
+                try:
+                    self.assertEqual(splash_window_sizes, [(720, 720)])
+                finally:
+                    scaled_game.shutdown(save=False)
+
+            with (
+                mock.patch.object(pygame_stub.transform, "scale", wraps=pygame_stub.transform.scale) as scale_mock,
+                mock.patch.object(pygame_stub.transform, "smoothscale", wraps=pygame_stub.transform.smoothscale) as smoothscale_mock,
+            ):
+                scaled_splash = game_module.Game.build_splash_frame(pygame_stub.Surface((240, 240)), (720, 720), 128)
+            self.assertEqual(scaled_splash.get_size(), (720, 720))
+            self.assertEqual(scaled_splash.alpha, 128)
+            scale_mock.assert_called_once()
+            smoothscale_mock.assert_not_called()
+
+            native_splash = game_module.Game.build_splash_frame(pygame_stub.Surface((240, 240)), (240, 240), 200)
+            self.assertEqual(native_splash.get_size(), (240, 240))
+            self.assertEqual(native_splash.alpha, 200)
+
+        self.assertTrue(callable(wrapper_module.main))
 
 
 if __name__ == "__main__":

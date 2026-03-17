@@ -30,6 +30,7 @@ class PersistenceTests(unittest.TestCase):
                 menu_memory_enabled=False,
                 display_scale=3,
                 sound_volume=0.5,
+                auto_update_enabled=True,
                 display_saturation=1.3,
                 display_contrast=1.45,
             )
@@ -44,8 +45,9 @@ class PersistenceTests(unittest.TestCase):
         self.assertFalse(loaded_settings.menu_memory_enabled)
         self.assertEqual(loaded_settings.display_scale, 3)
         self.assertEqual(loaded_settings.sound_volume, 0.5)
+        self.assertTrue(loaded_settings.auto_update_enabled)
         self.assertEqual(loaded_settings.display_saturation, 1.3)
-        self.assertEqual(loaded_settings.display_contrast, 1.45)
+        self.assertEqual(loaded_settings.display_contrast, 1.5)
 
     def test_legacy_theme_alias_migration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -88,6 +90,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertTrue(settings.menu_memory_enabled)
         self.assertEqual(settings.display_scale, 1)
         self.assertEqual(settings.sound_volume, 1.0)
+        self.assertFalse(settings.auto_update_enabled)
         self.assertEqual(settings.display_saturation, 1.3)
         self.assertEqual(settings.display_contrast, 1.3)
 

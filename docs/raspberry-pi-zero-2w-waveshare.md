@@ -32,12 +32,17 @@ python3 virtual_pet_template.py --platform waveshare-hat --windowed --no-direct-
 
 If you use `--display-rotation`, the joystick directions are remapped to follow the rotated screen.
 
+In 2x2 grid menus such as `Feed`, directional inputs now move by row and column instead of cycling linearly.
+
 ### HAT-only display setting
 
 When the direct Waveshare output backend is active, the in-game `Option` menu includes:
 
+- `Auto Upd`: enables a startup `git pull` check on Raspberry Pi clones of this repo
 - `Color`: cycles panel saturation between `Normal`, `Rich`, `Vivid`, and `Boost`
 - `Contrast`: cycles panel contrast between `Normal`, `Rich`, `Punchy`, and `Arcade`
+
+`Auto Upd` is off by default. When you turn it on, the launcher checks GitHub on startup, fast-forwards the local checkout if a new commit exists, and then restarts into the updated code.
 
 ### Pi setup
 
@@ -48,7 +53,7 @@ When the direct Waveshare output backend is active, the in-game `Option` menu in
 
 ```bash
 sudo apt update
-sudo apt install -y python3-pygame python3-gpiozero python3-lgpio python3-numpy python3-spidev
+sudo apt install -y git python3-pygame python3-gpiozero python3-lgpio python3-numpy python3-spidev
 ```
 
 3. Copy this repo to the Pi.
@@ -71,6 +76,17 @@ If you prefer to keep using Waveshare's framebuffer/X11 display setup instead of
 ```bash
 python3 virtual_pet_template.py --platform waveshare-hat --no-direct-output
 ```
+
+### Auto update behavior
+
+The built-in updater is intentionally conservative:
+
+- It only runs on a detected Raspberry Pi.
+- It only runs if `Option -> Auto Upd` is set to `On`.
+- It only runs from a real git clone with an upstream branch configured.
+- It skips the update if the repo has local code changes. The save file is preserved across the update.
+
+If you want startup updates under `systemd`, keep the service pointing at `virtual_pet_template.py`; the launcher handles the update check before the game starts.
 
 ### Optional autostart on the Pi desktop
 

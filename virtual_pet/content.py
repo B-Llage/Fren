@@ -15,6 +15,7 @@ from .config import (
     PROJECT_ROOT,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
+    SPLASH_SCREEN_PATH,
     THEME_COLOR_FIELDS,
     THEME_CONFIG_PATH,
 )
@@ -128,6 +129,23 @@ def load_background_image(path: Path = HOME_BACKGROUND_PATH) -> object | None:
     if image.get_size() != target_size:
         logger.info("Scaling background image from %s to %s", image.get_size(), target_size)
         image = pygame.transform.smoothscale(image, target_size)
+
+    return image
+
+
+def load_splash_image(path: Path = SPLASH_SCREEN_PATH) -> object | None:
+    import pygame
+
+    logger.info("Loading splash image from %s", path)
+    if not path.exists():
+        logger.info("Splash image not found; skipping splash screen.")
+        return None
+
+    try:
+        image = pygame.image.load(str(path)).convert_alpha()
+    except pygame.error:
+        logger.exception("Failed to load splash image from %s", path)
+        return None
 
     return image
 

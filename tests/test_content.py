@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from virtual_pet.config import PROJECT_ROOT
-from virtual_pet.content import load_food_items, load_menu_themes
+from virtual_pet.content import load_food_items, load_menu_themes, load_splash_image
+from tests.pygame_stub import install_pygame_stub
 
 
 class ContentTests(unittest.TestCase):
@@ -83,6 +85,20 @@ class ContentTests(unittest.TestCase):
                 foods = load_food_items(path)
 
         self.assertEqual(foods[0].sprite_path, PROJECT_ROOT / "food" / "example.png")
+
+    def test_load_splash_image_keeps_original_size(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "splash.png"
+            path.write_bytes(b"not-a-real-png")
+
+            pygame_stub = install_pygame_stub()
+            with mock.patch.dict(sys.modules, {"pygame": pygame_stub}):
+                with mock.patch.object(pygame_stub.transform, "smoothscale", wraps=pygame_stub.transform.smoothscale) as smoothscale_mock:
+                    splash = load_splash_image(path)
+
+        self.assertIsNotNone(splash)
+        self.assertEqual(splash.get_size(), (90, 90))
+        smoothscale_mock.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ from .config import (
     FEED_DROP_DURATION_SECONDS,
     FEED_MUNCH_FRAME_SECONDS,
     FEED_MUNCH_TOGGLE_COUNT,
+    FOOD_GRID_COLUMNS,
+    FOOD_GRID_ROWS,
     FPS,
     HOME_BACKGROUND_PATH,
     HOME_PET_SIZE,
@@ -53,6 +55,9 @@ from .config import (
     SOAP_PROP_PATH,
     SOAP_PROP_SIZE,
     SOUND_VOLUME_OPTIONS,
+    SPLASH_FADE_IN_SECONDS,
+    SPLASH_FADE_OUT_SECONDS,
+    SPLASH_HOLD_SECONDS,
     WANDER_HOPS_PER_SECOND,
     WANDER_PAUSE_MAX_SECONDS,
     WANDER_PAUSE_MIN_SECONDS,
@@ -60,7 +65,7 @@ from .config import (
     WANDER_SPEED,
     WINDOW_TITLE,
 )
-from .content import load_background_image, load_food_items, load_menu_themes, load_pet_sprite, load_prop_sprite
+from .content import load_background_image, load_food_items, load_menu_themes, load_pet_sprite, load_prop_sprite, load_splash_image
 from .display import create_display_backend
 from .input import (
     INPUT_BACK,
@@ -76,7 +81,8 @@ from .input import (
 from .models import FoodItem, MenuState, Pet, RuntimeState
 from .persistence import load_game_state, save_game_state
 from .renderer import GameRenderer
-from .runtime import RuntimeConfig, build_runtime_config
+from .runtime import PROFILE_WAVESHARE_HAT, RuntimeConfig, build_runtime_config
+from .updater import can_auto_update
 
 logger = logging.getLogger("virtual_pet")
 
@@ -100,15 +106,18 @@ class Game:
         self.window_size = self.screen.get_size()
         self.clock = pygame.time.Clock()
         self._is_shutdown = False
+        self.state = RuntimeState()
+        logger.info("Loading pet state...")
+        self.pet, self.settings = load_game_state()
         self.hardware_input = create_input_backend(
             self.runtime.enable_gpio_input,
             rotation=self.runtime.display_rotation,
         )
-        self.refresh_window(DEFAULT_DISPLAY_SCALE)
-
         mouse = getattr(pygame, "mouse", None)
         if mouse is not None and hasattr(mouse, "set_visible"):
             mouse.set_visible(not self.runtime.hide_mouse)
+        self.refresh_window(self.settings.display_scale)
+        self.show_startup_splash()
 
         logger.info("Loading content...")
         self.default_menu_theme, self.themes = load_menu_themes()
@@ -122,13 +131,11 @@ class Game:
         self.bubbles_sprite = load_prop_sprite(BUBBLES_PROP_PATH, BUBBLES_PROP_SIZE)
         self.food_options: list[FoodItem] = load_food_items()
         self.audio = AudioManager()
-
-        logger.info("Loading pet state...")
-        self.pet, self.settings = load_game_state()
         if self.settings.menu_theme not in self.themes:
             self.settings.menu_theme = self.default_menu_theme
 
         self.main_menu = list(MAIN_MENU_OPTIONS)
+        self.auto_update_supported = self.runtime.profile == PROFILE_WAVESHARE_HAT and can_auto_update()
         self.option_menu = [option for option in OPTION_MENU_OPTIONS if self.is_option_enabled(option)]
         self.actions = list(ACTION_OPTIONS)
         self.play_menu = list(PLAY_MENU_OPTIONS)
@@ -138,7 +145,6 @@ class Game:
         self.display_contrast_options = [value for _label, value in DISPLAY_CONTRAST_OPTIONS]
         self.display_saturation_options = [value for _label, value in DISPLAY_SATURATION_OPTIONS]
         self.reset_options = list(RESET_OPTIONS)
-        self.state = RuntimeState()
         self.state.selected_theme = self.theme_options.index(self.settings.menu_theme)
         self.state.selected_resolution = self.resolution_options.index(self.settings.display_scale)
         self.state.selected_option_menu = self.clamp_selection(self.state.selected_option_menu, self.option_menu)
@@ -182,6 +188,8 @@ class Game:
         return (selected_index + step) % len(options)
 
     def is_option_enabled(self, option_name: str) -> bool:
+        if option_name == "Auto Upd":
+            return self.auto_update_supported
         if option_name == "Color":
             return self.display_output is not None
         if option_name == "Contrast":
@@ -209,6 +217,82 @@ class Game:
         if actual_size == (0, 0):
             actual_size = (SCREEN_WIDTH, SCREEN_HEIGHT) if self.runtime.fullscreen else requested_size
         self.window_size = actual_size
+
+    def present_frame(self) -> None:
+        if self.display_output is not None:
+            self.display_output.present(self.screen)
+
+        if self.window_size == self.screen.get_size():
+            self.window.blit(self.screen, (0, 0))
+        else:
+            scaled_surface = pygame.transform.scale(self.screen, self.window_size)
+            self.window.blit(scaled_surface, (0, 0))
+
+        pygame.display.flip()
+
+    @staticmethod
+    def build_splash_frame(
+        splash_image: pygame.Surface,
+        target_size: tuple[int, int],
+        alpha: int,
+    ) -> pygame.Surface:
+        if splash_image.get_size() != target_size:
+            splash_frame = pygame.transform.scale(splash_image, target_size)
+        else:
+            splash_frame = splash_image.copy() if hasattr(splash_image, "copy") else splash_image
+
+        if hasattr(splash_frame, "set_alpha"):
+            splash_frame.set_alpha(alpha)
+
+        return splash_frame
+
+    def show_startup_splash(self) -> None:
+        splash_image = load_splash_image()
+        if splash_image is None:
+            return
+
+        total_duration = SPLASH_FADE_IN_SECONDS + SPLASH_HOLD_SECONDS + SPLASH_FADE_OUT_SECONDS
+        elapsed = 0.0
+
+        while elapsed < total_duration and self.state.running:
+            dt = self.clock.tick(FPS) / 1000.0
+            elapsed += dt
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.state.running = False
+                    break
+
+            if not self.state.running:
+                break
+
+            if elapsed < SPLASH_FADE_IN_SECONDS:
+                alpha_progress = elapsed / SPLASH_FADE_IN_SECONDS
+            elif elapsed < SPLASH_FADE_IN_SECONDS + SPLASH_HOLD_SECONDS:
+                alpha_progress = 1.0
+            else:
+                fade_out_elapsed = elapsed - SPLASH_FADE_IN_SECONDS - SPLASH_HOLD_SECONDS
+                alpha_progress = 1.0 - (fade_out_elapsed / SPLASH_FADE_OUT_SECONDS)
+
+            splash_alpha = max(0, min(255, int(round(alpha_progress * 255))))
+            self.screen.fill((0, 0, 0))
+            screen_frame = self.build_splash_frame(splash_image, self.screen.get_size(), splash_alpha)
+            self.screen.blit(screen_frame, (0, 0))
+
+            if self.display_output is not None:
+                self.display_output.present(self.screen)
+
+            if self.window_size == self.screen.get_size():
+                self.window.blit(self.screen, (0, 0))
+            else:
+                self.window.fill((0, 0, 0))
+                window_frame = self.build_splash_frame(splash_image, self.window_size, splash_alpha)
+                self.window.blit(window_frame, (0, 0))
+
+            pygame.display.flip()
+
+        self.screen.fill((0, 0, 0))
+        self.present_frame()
 
     def apply_display_scale(self, display_scale: int) -> None:
         if display_scale not in DISPLAY_SCALE_OPTIONS:
@@ -356,6 +440,7 @@ class Game:
         labels: list[str] = []
         menu_mem_state = "On" if self.settings.menu_memory_enabled else "Off"
         volume_percent = int(round(self.settings.sound_volume * 100))
+        auto_update_state = "On" if self.settings.auto_update_enabled else "Off"
 
         for option in self.option_menu:
             if option == "Theme":
@@ -364,6 +449,8 @@ class Game:
                 labels.append(f"Menu Mem: {menu_mem_state}")
             elif option == "Volume":
                 labels.append(f"Vol: {volume_percent}%")
+            elif option == "Auto Upd":
+                labels.append(f"Upd: {auto_update_state}")
             elif option == "Color":
                 labels.append(f"Color: {self.get_display_saturation_label()}")
             elif option == "Contrast":
@@ -615,6 +702,52 @@ class Game:
         logger.info("Selected main menu index changed to %s", self.state.selected_menu)
         self.play_sound("menu_cycle")
 
+    def move_food_grid_selection(self, horizontal_step: int, vertical_step: int) -> bool:
+        if not self.food_options:
+            return False
+
+        current_index = self.clamp_selection(self.state.selected_food, self.food_options)
+        current_row = current_index // FOOD_GRID_COLUMNS
+        current_column = current_index % FOOD_GRID_COLUMNS
+        target_row = current_row + vertical_step
+        target_column = current_column + horizontal_step
+
+        if target_column < 0 or target_column >= FOOD_GRID_COLUMNS:
+            return False
+        if target_row < 0 or target_row >= FOOD_GRID_ROWS:
+            return False
+
+        target_index = (target_row * FOOD_GRID_COLUMNS) + target_column
+        if target_index >= len(self.food_options):
+            return False
+
+        if target_index == current_index:
+            return False
+
+        self.state.selected_food = target_index
+        logger.info("Selected food index changed to %s", self.state.selected_food)
+        self.play_sound("menu_cycle")
+        return True
+
+    def handle_directional_selection(self, action: str) -> bool:
+        if self.state.menu_state != MenuState.FOODS:
+            return False
+
+        if action == INPUT_LEFT:
+            self.move_food_grid_selection(-1, 0)
+            return True
+        if action == INPUT_RIGHT:
+            self.move_food_grid_selection(1, 0)
+            return True
+        if action == INPUT_UP:
+            self.move_food_grid_selection(0, -1)
+            return True
+        if action == INPUT_DOWN:
+            self.move_food_grid_selection(0, 1)
+            return True
+
+        return False
+
     def confirm_selection(self) -> None:
         if self.state.menu_state == MenuState.HOME:
             logger.info("Confirm pressed on home screen; no action taken.")
@@ -644,6 +777,10 @@ class Game:
                 self.play_sound("setting_change")
             elif selected_option == "Volume":
                 self.cycle_sound_volume()
+                self.play_sound("setting_change")
+            elif selected_option == "Auto Upd":
+                self.settings.auto_update_enabled = not self.settings.auto_update_enabled
+                logger.info("Auto update toggled to %s", self.settings.auto_update_enabled)
                 self.play_sound("setting_change")
             elif selected_option == "Color":
                 self.cycle_display_saturation()
@@ -1015,10 +1152,18 @@ class Game:
                 self.handle_input_action(action)
 
     def handle_keyboard_input(self, key: int) -> None:
-        if self.key_matches(key, "K_q", "K_DOWN", "K_RIGHT", "K_TAB"):
+        if self.key_matches(key, "K_q", "K_TAB"):
             self.handle_input_action(INPUT_NEXT)
-        elif self.key_matches(key, "K_a", "K_UP", "K_LEFT"):
+        elif self.key_matches(key, "K_a"):
             self.handle_input_action(INPUT_PREVIOUS)
+        elif self.key_matches(key, "K_DOWN"):
+            self.handle_input_action(INPUT_DOWN)
+        elif self.key_matches(key, "K_RIGHT"):
+            self.handle_input_action(INPUT_RIGHT)
+        elif self.key_matches(key, "K_UP"):
+            self.handle_input_action(INPUT_UP)
+        elif self.key_matches(key, "K_LEFT"):
+            self.handle_input_action(INPUT_LEFT)
         elif self.key_matches(key, "K_w", "K_RETURN", "K_SPACE"):
             self.handle_input_action(INPUT_CONFIRM)
         elif self.key_matches(key, "K_e", "K_ESCAPE", "K_BACKSPACE"):
@@ -1029,10 +1174,13 @@ class Game:
             self.cycle_selection(1)
         elif action == INPUT_PREVIOUS:
             self.cycle_selection(-1)
-        elif action in (INPUT_DOWN, INPUT_RIGHT):
-            self.cycle_selection(1)
-        elif action in (INPUT_UP, INPUT_LEFT):
-            self.cycle_selection(-1)
+        elif action in (INPUT_DOWN, INPUT_RIGHT, INPUT_UP, INPUT_LEFT):
+            if self.handle_directional_selection(action):
+                return
+            if action in (INPUT_DOWN, INPUT_RIGHT):
+                self.cycle_selection(1)
+            else:
+                self.cycle_selection(-1)
         elif action == INPUT_CONFIRM:
             self.confirm_selection()
         elif action == INPUT_BACK:
@@ -1069,14 +1217,7 @@ class Game:
                 self.handle_events()
                 self.update(dt)
                 self.draw_ui()
-                if self.display_output is not None:
-                    self.display_output.present(self.screen)
-                if self.window_size == self.screen.get_size():
-                    self.window.blit(self.screen, (0, 0))
-                else:
-                    scaled_surface = pygame.transform.scale(self.screen, self.window_size)
-                    self.window.blit(scaled_surface, (0, 0))
-                pygame.display.flip()
+                self.present_frame()
         finally:
             logger.info("Exiting main loop.")
             self.shutdown(save=True)

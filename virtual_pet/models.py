@@ -11,6 +11,7 @@ from .config import (
     DEFAULT_DISPLAY_CONTRAST,
     DEFAULT_DISPLAY_SCALE,
     DEFAULT_DISPLAY_SATURATION,
+    DEFAULT_AUTO_UPDATE_ENABLED,
     DEFAULT_MENU_MEMORY_ENABLED,
     DEFAULT_SOUND_VOLUME,
     FALLBACK_MENU_THEME,
@@ -78,6 +79,7 @@ class AppSettings:
     menu_memory_enabled: bool = DEFAULT_MENU_MEMORY_ENABLED
     display_scale: int = DEFAULT_DISPLAY_SCALE
     sound_volume: float = DEFAULT_SOUND_VOLUME
+    auto_update_enabled: bool = DEFAULT_AUTO_UPDATE_ENABLED
     display_saturation: float = DEFAULT_DISPLAY_SATURATION
     display_contrast: float = DEFAULT_DISPLAY_CONTRAST
 
