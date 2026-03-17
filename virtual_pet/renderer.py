@@ -83,6 +83,7 @@ class GameRenderer:
         munch_face_open_sprite: pygame.Surface | None,
         soap_sprite: pygame.Surface | None,
         bubbles_sprite: pygame.Surface | None,
+        save_indicator_sprite: pygame.Surface | None,
     ) -> None:
         self.screen = screen
         self.themes = themes
@@ -94,6 +95,7 @@ class GameRenderer:
         self.munch_face_open_sprite = munch_face_open_sprite
         self.soap_sprite = soap_sprite
         self.bubbles_sprite = bubbles_sprite
+        self.save_indicator_sprite = save_indicator_sprite
         self.font = pygame.font.SysFont("arial", 18)
         self.big_font = pygame.font.SysFont("arial", 20, bold=True)
         self.menu_font = pygame.font.SysFont("arial", 22, bold=True)
@@ -749,6 +751,19 @@ class GameRenderer:
             label_surface = label_font.render(format_menu_text(option), True, text_color)
             label_rect = label_surface.get_rect(center=button_rect.center)
             self.screen.blit(label_surface, label_rect)
+
+    def draw_save_indicator(self, alpha: int = 255) -> None:
+        if self.save_indicator_sprite is None:
+            return
+
+        indicator_sprite = self.save_indicator_sprite.copy() if hasattr(self.save_indicator_sprite, "copy") else self.save_indicator_sprite
+        if hasattr(indicator_sprite, "set_alpha"):
+            indicator_sprite.set_alpha(max(0, min(255, alpha)))
+
+        margin = 8
+        sprite_x = margin
+        sprite_y = SCREEN_HEIGHT - indicator_sprite.get_height() - margin
+        self.screen.blit(indicator_sprite, (sprite_x, sprite_y))
 
     def draw_clock(self, settings: AppSettings) -> None:
         palette = self.get_menu_theme_palette(settings)

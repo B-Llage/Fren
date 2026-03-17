@@ -34,6 +34,7 @@ class DirectSpiDisplay:
         self._saturation_scale = 256
         self._contrast = DEFAULT_DISPLAY_CONTRAST
         self._contrast_lut = None
+        self._sleeping = False
 
         self._spi = spidev.SpiDev()
         self._spi.open(WAVESHARE_LCD_SPI_PORT, WAVESHARE_LCD_SPI_CS)
@@ -127,7 +128,30 @@ class DirectSpiDisplay:
         self.set_window(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1)
         self.write_frame(self._clear_frame)
 
+    def set_sleeping(self, sleeping: bool) -> None:
+        if sleeping == self._sleeping:
+            return
+
+        self._sleeping = sleeping
+        self._last_present_at = 0.0
+        if sleeping:
+            self.write_command(0x28)
+            time.sleep(0.02)
+            self.write_command(0x10)
+            time.sleep(0.12)
+            self._backlight.off()
+            return
+
+        self._backlight.on()
+        self.write_command(0x11)
+        time.sleep(WAVESHARE_LCD_INIT_DELAY_SECONDS)
+        self.write_command(0x29)
+        time.sleep(0.05)
+
     def present(self, surface: pygame.Surface) -> None:
+        if self._sleeping:
+            return
+
         now = time.monotonic()
         if self._last_present_at and (now - self._last_present_at) < self._frame_interval_seconds:
             return

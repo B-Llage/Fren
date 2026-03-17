@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .config import (
     DEFAULT_AUTO_UPDATE_ENABLED,
+    DEFAULT_AUTO_RETURN_ENABLED,
     DEFAULT_DISPLAY_CONTRAST,
     DEFAULT_DISPLAY_SCALE,
     DEFAULT_DISPLAY_SATURATION,
@@ -78,6 +79,7 @@ def save_game_state(pet: Pet, settings: AppSettings, path: Path = SAVE_PATH) -> 
         "pet": asdict(pet),
         "menu_theme": settings.menu_theme,
         "menu_memory_enabled": settings.menu_memory_enabled,
+        "auto_return_enabled": settings.auto_return_enabled,
         "display_scale": settings.display_scale,
         "sound_volume": settings.sound_volume,
         "auto_update_enabled": settings.auto_update_enabled,
@@ -103,6 +105,7 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
         pet_data = data.get("pet", {})
         menu_theme = data.get("menu_theme", default_theme)
         menu_memory_enabled = data.get("menu_memory_enabled", DEFAULT_MENU_MEMORY_ENABLED)
+        auto_return_enabled = data.get("auto_return_enabled", DEFAULT_AUTO_RETURN_ENABLED)
         display_scale = data.get("display_scale", DEFAULT_DISPLAY_SCALE)
         sound_volume = data.get("sound_volume", DEFAULT_SOUND_VOLUME)
         auto_update_enabled = data.get("auto_update_enabled", DEFAULT_AUTO_UPDATE_ENABLED)
@@ -112,6 +115,7 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
         pet_data = data
         menu_theme = default_theme
         menu_memory_enabled = DEFAULT_MENU_MEMORY_ENABLED
+        auto_return_enabled = DEFAULT_AUTO_RETURN_ENABLED
         display_scale = DEFAULT_DISPLAY_SCALE
         sound_volume = DEFAULT_SOUND_VOLUME
         auto_update_enabled = DEFAULT_AUTO_UPDATE_ENABLED
@@ -121,6 +125,8 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
     menu_theme = LEGACY_THEME_ALIASES.get(menu_theme, menu_theme)
     if not isinstance(menu_memory_enabled, bool):
         menu_memory_enabled = DEFAULT_MENU_MEMORY_ENABLED
+    if not isinstance(auto_return_enabled, bool):
+        auto_return_enabled = DEFAULT_AUTO_RETURN_ENABLED
     if not isinstance(auto_update_enabled, bool):
         auto_update_enabled = DEFAULT_AUTO_UPDATE_ENABLED
     try:
@@ -148,6 +154,7 @@ def load_game_state(path: Path = SAVE_PATH) -> tuple[Pet, AppSettings]:
     settings = AppSettings(
         menu_theme=menu_theme,
         menu_memory_enabled=menu_memory_enabled,
+        auto_return_enabled=auto_return_enabled,
         display_scale=display_scale,
         sound_volume=sound_volume,
         auto_update_enabled=auto_update_enabled,

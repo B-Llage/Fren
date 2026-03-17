@@ -51,6 +51,14 @@ class WaveshareHatInputTests(unittest.TestCase):
         buttons[21].is_pressed = True
         self.assertEqual(backend.poll_actions(), [INPUT_NEXT])
 
+    def test_is_confirm_pressed_checks_confirm_buttons(self) -> None:
+        backend, buttons = self.build_backend()
+
+        self.assertFalse(backend.is_confirm_pressed())
+
+        buttons[20].is_pressed = True
+        self.assertTrue(backend.is_confirm_pressed())
+
     def test_close_closes_all_buttons(self) -> None:
         backend, buttons = self.build_backend()
 

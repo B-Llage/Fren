@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from virtual_pet.battery import BatteryStatus, PiSugarBatteryMonitor
+from virtual_pet.battery import BatteryStatus, BatteryStatusSmoother, PiSugarBatteryMonitor
 
 
 class BatteryMonitorTests(unittest.TestCase):
@@ -41,6 +41,35 @@ class BatteryMonitorTests(unittest.TestCase):
 
     def test_parse_response_value_rejects_unexpected_keys(self) -> None:
         self.assertIsNone(PiSugarBatteryMonitor.parse_response_value("model: PiSugar3", "battery"))
+
+    def test_smoother_averages_samples_before_updating_display(self) -> None:
+        smoother = BatteryStatusSmoother(sample_size=4, hysteresis_percent=2)
+
+        first = smoother.update(BatteryStatus(percentage=50, plugged_in=False))
+        second = smoother.update(BatteryStatus(percentage=51, plugged_in=False))
+        third = smoother.update(BatteryStatus(percentage=52, plugged_in=False))
+        fourth = smoother.update(BatteryStatus(percentage=54, plugged_in=False))
+
+        self.assertEqual(first, BatteryStatus(percentage=50, plugged_in=False))
+        self.assertEqual(second, BatteryStatus(percentage=50, plugged_in=False))
+        self.assertEqual(third, BatteryStatus(percentage=50, plugged_in=False))
+        self.assertEqual(fourth, BatteryStatus(percentage=52, plugged_in=False))
+
+    def test_smoother_keeps_last_displayed_value_when_raw_status_is_missing(self) -> None:
+        smoother = BatteryStatusSmoother(sample_size=4, hysteresis_percent=2)
+
+        smoother.update(BatteryStatus(percentage=63, plugged_in=False))
+        cached_status = smoother.update(None)
+
+        self.assertEqual(cached_status, BatteryStatus(percentage=63, plugged_in=False))
+
+    def test_smoother_updates_power_state_without_forcing_percent_jump(self) -> None:
+        smoother = BatteryStatusSmoother(sample_size=4, hysteresis_percent=2)
+
+        smoother.update(BatteryStatus(percentage=72, plugged_in=False))
+        updated_status = smoother.update(BatteryStatus(percentage=73, plugged_in=True))
+
+        self.assertEqual(updated_status, BatteryStatus(percentage=72, plugged_in=True))
 
 
 if __name__ == "__main__":

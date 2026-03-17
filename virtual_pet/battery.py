@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 import logging
 import socket
 import time
@@ -11,12 +12,52 @@ logger = logging.getLogger("virtual_pet")
 PISUGAR_SERVER_SOCKET_PATH = Path("/tmp/pisugar-server.sock")
 PISUGAR_SOCKET_TIMEOUT_SECONDS = 0.25
 PISUGAR_STATUS_POLL_INTERVAL_SECONDS = 15.0
+BATTERY_DISPLAY_SAMPLE_SIZE = 4
+BATTERY_DISPLAY_HYSTERESIS_PERCENT = 2
 
 
 @dataclass(frozen=True)
 class BatteryStatus:
     percentage: int
     plugged_in: bool | None = None
+
+
+class BatteryStatusSmoother:
+    def __init__(
+        self,
+        *,
+        sample_size: int = BATTERY_DISPLAY_SAMPLE_SIZE,
+        hysteresis_percent: int = BATTERY_DISPLAY_HYSTERESIS_PERCENT,
+    ) -> None:
+        self._sample_size = max(1, int(sample_size))
+        self._hysteresis_percent = max(0, int(hysteresis_percent))
+        self._percent_samples: deque[int] = deque(maxlen=self._sample_size)
+        self._display_status: BatteryStatus | None = None
+
+    def update(self, raw_status: BatteryStatus | None) -> BatteryStatus | None:
+        if raw_status is None:
+            return self._display_status
+
+        normalized_percentage = max(0, min(100, int(raw_status.percentage)))
+        self._percent_samples.append(normalized_percentage)
+        averaged_percentage = int(round(sum(self._percent_samples) / len(self._percent_samples)))
+
+        if self._display_status is None:
+            self._display_status = BatteryStatus(
+                percentage=averaged_percentage,
+                plugged_in=raw_status.plugged_in,
+            )
+            return self._display_status
+
+        displayed_percentage = self._display_status.percentage
+        if abs(averaged_percentage - displayed_percentage) >= self._hysteresis_percent:
+            displayed_percentage = averaged_percentage
+
+        self._display_status = BatteryStatus(
+            percentage=displayed_percentage,
+            plugged_in=raw_status.plugged_in,
+        )
+        return self._display_status
 
 
 class PiSugarBatteryMonitor:

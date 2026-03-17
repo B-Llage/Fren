@@ -34,6 +34,10 @@ If you use `--display-rotation`, the joystick directions are remapped to follow 
 
 In 2x2 grid menus such as `Feed`, directional inputs now move by row and column instead of cycling linearly.
 
+The main menu also includes `Sleep`. On desktop it blanks the window, on the HAT it powers the panel down, and in both cases the game drops into a low-frequency loop that only keeps pet stat decay moving. Hold confirm to wake back into the splash screen, then press confirm again to dismiss the splash normally.
+
+On a detected Raspberry Pi, the game also enters sleep automatically after 60 seconds with no menu or button input.
+
 ### HAT-only display setting
 
 When the direct Waveshare output backend is active, the in-game `Option` menu includes:

@@ -155,6 +155,7 @@ def install_pygame_stub():
     pygame.error = RuntimeError
     pygame.QUIT = 256
     pygame.KEYDOWN = 768
+    pygame.KEYUP = 769
     pygame.FULLSCREEN = 1
     pygame.K_q = 113
     pygame.K_a = 97

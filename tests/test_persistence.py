@@ -28,6 +28,7 @@ class PersistenceTests(unittest.TestCase):
             settings = AppSettings(
                 menu_theme="diamond_pink",
                 menu_memory_enabled=False,
+                auto_return_enabled=True,
                 display_scale=3,
                 sound_volume=0.5,
                 auto_update_enabled=True,
@@ -43,6 +44,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(loaded_pet.hunger, 8)
         self.assertEqual(loaded_settings.menu_theme, "diamond_pink")
         self.assertFalse(loaded_settings.menu_memory_enabled)
+        self.assertTrue(loaded_settings.auto_return_enabled)
         self.assertEqual(loaded_settings.display_scale, 3)
         self.assertEqual(loaded_settings.sound_volume, 0.5)
         self.assertTrue(loaded_settings.auto_update_enabled)
@@ -88,6 +90,7 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(settings.menu_theme, "ocean_blue")
         self.assertTrue(settings.menu_memory_enabled)
+        self.assertTrue(settings.auto_return_enabled)
         self.assertEqual(settings.display_scale, 1)
         self.assertEqual(settings.sound_volume, 1.0)
         self.assertFalse(settings.auto_update_enabled)

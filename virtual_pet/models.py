@@ -6,6 +6,7 @@ from enum import Enum, auto
 from pathlib import Path
 
 from .config import (
+    DEFAULT_AUTO_RETURN_ENABLED,
     ACTIONS_PRIMARY_AMOUNT,
     ACTIONS_SECONDARY_AMOUNT,
     DEFAULT_DISPLAY_CONTRAST,
@@ -42,6 +43,7 @@ class PetMood(Enum):
 class MenuState(Enum):
     HOME = auto()
     MAIN_MENU = auto()
+    SLEEP = auto()
     ACTIONS = auto()
     PLAY_MENU = auto()
     OPTIONS = auto()
@@ -77,6 +79,7 @@ class FoodItem:
 class AppSettings:
     menu_theme: str = FALLBACK_MENU_THEME
     menu_memory_enabled: bool = DEFAULT_MENU_MEMORY_ENABLED
+    auto_return_enabled: bool = DEFAULT_AUTO_RETURN_ENABLED
     display_scale: int = DEFAULT_DISPLAY_SCALE
     sound_volume: float = DEFAULT_SOUND_VOLUME
     auto_update_enabled: bool = DEFAULT_AUTO_UPDATE_ENABLED
@@ -120,6 +123,8 @@ class RuntimeState:
     pet_facing_left: bool = False
     running: bool = True
     decay_accumulator: float = 0.0
+    sleep_wake_hold_elapsed: float = 0.0
+    action_return_menu: MenuState | None = None
 
 
 @dataclass

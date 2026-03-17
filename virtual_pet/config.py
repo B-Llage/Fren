@@ -7,6 +7,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SCREEN_WIDTH = 240
 SCREEN_HEIGHT = 240
 FPS = 30
+SLEEP_FPS = 2
+SLEEP_IDLE_TIMEOUT_SECONDS = 60.0
+AUTO_SAVE_INTERVAL_SECONDS = 60.0
+SAVE_INDICATOR_DURATION_SECONDS = 0.9
+MENU_FADE_IN_SECONDS = 0.2
 WINDOW_TITLE = "Virtual Pet Template"
 
 SAVE_PATH = PROJECT_ROOT / "pet_save.json"
@@ -19,9 +24,11 @@ DISPLAY_SCALE_OPTIONS = (1, 2, 3)
 DEFAULT_SOUND_VOLUME = 1.0
 SOUND_VOLUME_OPTIONS = (0.0, 0.25, 0.5, 0.75, 1.0)
 DEFAULT_AUTO_UPDATE_ENABLED = False
+DEFAULT_AUTO_RETURN_ENABLED = True
 SPLASH_FADE_IN_SECONDS = 0.45
 SPLASH_HOLD_SECONDS = 0.35
 SPLASH_FADE_OUT_SECONDS = 0.45
+SLEEP_WAKE_HOLD_SECONDS = 1.0
 DEFAULT_DISPLAY_SATURATION = 1.3
 DISPLAY_SATURATION_OPTIONS = (
     ("Normal", 1.0),
@@ -47,6 +54,7 @@ RADISH_FOOD_PATH = PROJECT_ROOT / "food" / "food_radish.png"
 WATERMELON_FOOD_PATH = PROJECT_ROOT / "food" / "food_watermelon.png"
 SOAP_PROP_PATH = PROJECT_ROOT / "props" / "props_soap.png"
 BUBBLES_PROP_PATH = PROJECT_ROOT / "props" / "props_bubbles.png"
+FLOPPY_PROP_PATH = PROJECT_ROOT / "props" / "props_floppy.png"
 MUNCH_FACE_CLOSED_PATH = PROJECT_ROOT / "creatures" / "bunny" / "face_munch_closed_bunny.png"
 MUNCH_FACE_OPEN_PATH = PROJECT_ROOT / "creatures" / "bunny" / "face_munch_open_bunny.png"
 
@@ -61,6 +69,7 @@ FOOD_GRID_GAP = 12
 FOOD_ICON_SIZE = (32, 32)
 SOAP_PROP_SIZE = (32, 32)
 BUBBLES_PROP_SIZE = (20, 20)
+FLOPPY_PROP_SIZE = (20, 20)
 
 FEED_DROP_DURATION_SECONDS = 0.45
 FEED_MUNCH_FRAME_SECONDS = 0.12
@@ -69,7 +78,7 @@ FEED_FOOD_SHAKE_AMPLITUDE = 2
 FEED_FOOD_START_Y = 20
 FEED_FOOD_TARGET_X_OFFSET = 42
 FEED_FOOD_TARGET_Y_OFFSET = 8
-ACTION_CELEBRATION_DURATION_SECONDS = 0.45
+ACTION_CELEBRATION_DURATION_SECONDS = 0.75
 
 CLEAN_DROP_DURATION_SECONDS = 0.45
 CLEAN_SCRUB_DURATION_SECONDS = 1.5
@@ -125,8 +134,8 @@ MAX_STAT = 10
 MIN_STAT = 0
 STAT_FIELDS = ("hunger", "hygiene", "happiness", "health")
 
-MAIN_MENU_OPTIONS = ("Action", "Status", "Option")
-OPTION_MENU_OPTIONS = ("Theme", "Menu Mem", "Volume", "Auto Upd", "Color", "Contrast", "Res", "Reset")
+MAIN_MENU_OPTIONS = ("Action", "Status", "Option", "Sleep")
+OPTION_MENU_OPTIONS = ("Theme", "Menu Mem", "Auto Rtrn", "Volume", "Auto Upd", "Color", "Contrast", "Res", "Reset")
 ACTION_OPTIONS = ("Feed", "Play", "Clean", "Heal")
 PLAY_MENU_OPTIONS = ("Jump Rope",)
 RESET_OPTIONS = ("No", "Yes")

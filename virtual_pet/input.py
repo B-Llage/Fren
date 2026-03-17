@@ -59,6 +59,13 @@ class WaveshareHatInput:
             self._pressed_states[mapping.name] = is_pressed
         return actions
 
+    def is_confirm_pressed(self) -> bool:
+        for mapping, button in self._buttons:
+            if INPUT_CONFIRM in mapping.actions and self._is_pressed(button):
+                return True
+
+        return False
+
     def rotate_actions(self, actions: tuple[str, ...]) -> list[str]:
         rotated_actions: list[str] = []
         for action in actions:

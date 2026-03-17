@@ -8,11 +8,13 @@ import random
 import pygame
 
 from .audio import AudioManager, pre_init_audio
-from .battery import BatteryStatus, create_battery_monitor
+from .battery import BatteryStatus, BatteryStatusSmoother, create_battery_monitor
 from .config import (
     ACTION_OPTIONS,
     ACTION_CELEBRATION_DURATION_SECONDS,
+    AUTO_SAVE_INTERVAL_SECONDS,
     BASE_SPRITE_PATH,
+    BLACK,
     BUBBLES_PROP_PATH,
     BUBBLES_PROP_SIZE,
     CLEAN_DROP_DURATION_SECONDS,
@@ -31,6 +33,8 @@ from .config import (
     FEED_DROP_DURATION_SECONDS,
     FEED_MUNCH_FRAME_SECONDS,
     FEED_MUNCH_TOGGLE_COUNT,
+    FLOPPY_PROP_PATH,
+    FLOPPY_PROP_SIZE,
     FOOD_GRID_COLUMNS,
     FOOD_GRID_ROWS,
     FPS,
@@ -46,13 +50,18 @@ from .config import (
     JUMP_ROPE_REQUIRED_HEIGHT,
     JUMP_ROPE_TARGET_SUCCESSES,
     MAIN_MENU_OPTIONS,
+    MENU_FADE_IN_SECONDS,
     MUNCH_FACE_CLOSED_PATH,
     MUNCH_FACE_OPEN_PATH,
     OPTION_MENU_OPTIONS,
     PLAY_MENU_OPTIONS,
     RESET_OPTIONS,
+    SAVE_INDICATOR_DURATION_SECONDS,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
+    SLEEP_FPS,
+    SLEEP_IDLE_TIMEOUT_SECONDS,
+    SLEEP_WAKE_HOLD_SECONDS,
     SOAP_PROP_PATH,
     SOAP_PROP_SIZE,
     SOUND_VOLUME_OPTIONS,
@@ -107,8 +116,17 @@ class Game:
         self.window_size = self.screen.get_size()
         self.clock = pygame.time.Clock()
         self._is_shutdown = False
+        self.keyboard_confirm_active = False
+        self.auto_sleep_enabled = self.runtime.detected_model is not None
+        self.sleep_idle_elapsed = 0.0
+        self.auto_save_elapsed = 0.0
+        self.save_indicator_elapsed = 0.0
+        self.menu_fade_elapsed = MENU_FADE_IN_SECONDS
+        self.menu_fade_state: MenuState | None = None
+        self.menu_fade_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.state = RuntimeState()
         self.battery_monitor = create_battery_monitor(self.runtime.detected_model is not None)
+        self.battery_smoother = BatteryStatusSmoother() if self.battery_monitor is not None else None
         self.battery_status: BatteryStatus | None = None
         logger.info("Loading pet state...")
         self.pet, self.settings = load_game_state()
@@ -132,6 +150,7 @@ class Game:
         self.munch_face_open_sprite = load_pet_sprite(MUNCH_FACE_OPEN_PATH)
         self.soap_sprite = load_prop_sprite(SOAP_PROP_PATH, SOAP_PROP_SIZE)
         self.bubbles_sprite = load_prop_sprite(BUBBLES_PROP_PATH, BUBBLES_PROP_SIZE)
+        self.save_indicator_sprite = load_prop_sprite(FLOPPY_PROP_PATH, FLOPPY_PROP_SIZE)
         self.food_options: list[FoodItem] = load_food_items()
         self.audio = AudioManager()
         if self.settings.menu_theme not in self.themes:
@@ -170,6 +189,7 @@ class Game:
             munch_face_open_sprite=self.munch_face_open_sprite,
             soap_sprite=self.soap_sprite,
             bubbles_sprite=self.bubbles_sprite,
+            save_indicator_sprite=self.save_indicator_sprite,
         )
         self.refresh_battery_status()
         self.apply_display_scale(self.settings.display_scale)
@@ -181,10 +201,26 @@ class Game:
         if self.battery_monitor is None:
             self.battery_status = None
         else:
-            self.battery_status = self.battery_monitor.get_status()
+            raw_battery_status = self.battery_monitor.get_status()
+            if self.battery_smoother is None:
+                self.battery_status = raw_battery_status
+            else:
+                self.battery_status = self.battery_smoother.update(raw_battery_status)
 
         if hasattr(self, "renderer"):
             self.renderer.battery_status = self.battery_status
+
+    def save_game(self, *, show_indicator: bool = True) -> bool:
+        self.auto_save_elapsed = 0.0
+        try:
+            save_game_state(self.pet, self.settings)
+        except Exception:
+            logger.exception("Failed to save game state.")
+            return False
+
+        if show_indicator:
+            self.save_indicator_elapsed = SAVE_INDICATOR_DURATION_SECONDS
+        return True
 
     @staticmethod
     def clamp_selection(selected_index: int, options: list[object]) -> int:
@@ -242,6 +278,115 @@ class Game:
             self.window.blit(scaled_surface, (0, 0))
 
         pygame.display.flip()
+
+    @staticmethod
+    def is_confirm_key(key: int) -> bool:
+        return Game.key_matches(key, "K_w", "K_RETURN", "K_SPACE")
+
+    def is_confirm_input_active(self) -> bool:
+        if self.keyboard_confirm_active:
+            return True
+
+        if self.hardware_input is None:
+            return False
+
+        is_confirm_pressed = getattr(self.hardware_input, "is_confirm_pressed", None)
+        if callable(is_confirm_pressed):
+            return bool(is_confirm_pressed())
+
+        return False
+
+    def apply_sleep_display_state(self, sleeping: bool) -> None:
+        self.screen.fill(BLACK)
+
+        set_sleeping = getattr(self.display_output, "set_sleeping", None)
+        if callable(set_sleeping):
+            set_sleeping(sleeping)
+            return
+
+        if not sleeping:
+            return
+
+        self.window.fill(BLACK)
+        self.present_frame()
+
+    def enter_sleep_mode(self) -> None:
+        logger.info("Entering sleep mode.")
+        self.sleep_idle_elapsed = 0.0
+        self.state.menu_state = MenuState.SLEEP
+        self.state.sleep_wake_hold_elapsed = 0.0
+        self.apply_sleep_display_state(sleeping=True)
+
+    def wake_from_sleep_mode(self) -> None:
+        logger.info("Waking from sleep mode.")
+        self.sleep_idle_elapsed = 0.0
+        self.state.sleep_wake_hold_elapsed = 0.0
+        self.apply_sleep_display_state(sleeping=False)
+        self.state.menu_state = MenuState.HOME
+        self.show_startup_splash_safe()
+        self.refresh_battery_status()
+
+    def reset_sleep_idle_timer(self) -> None:
+        self.sleep_idle_elapsed = 0.0
+
+    @staticmethod
+    def is_fade_menu_state(menu_state: MenuState) -> bool:
+        return menu_state in {
+            MenuState.MAIN_MENU,
+            MenuState.ACTIONS,
+            MenuState.PLAY_MENU,
+            MenuState.OPTIONS,
+            MenuState.RESOLUTION,
+            MenuState.FOODS,
+            MenuState.STATUS,
+            MenuState.THEMES,
+            MenuState.RESET_CONFIRM,
+        }
+
+    def sync_menu_fade_state(self) -> None:
+        if self.state.menu_state == self.menu_fade_state:
+            return
+
+        self.menu_fade_state = self.state.menu_state
+        if self.is_fade_menu_state(self.state.menu_state):
+            self.menu_fade_elapsed = 0.0
+        else:
+            self.menu_fade_elapsed = MENU_FADE_IN_SECONDS
+
+    def get_menu_fade_alpha(self) -> int:
+        if not self.is_fade_menu_state(self.state.menu_state):
+            return 0
+
+        if MENU_FADE_IN_SECONDS <= 0:
+            return 0
+
+        progress = max(0.0, min(1.0, self.menu_fade_elapsed / MENU_FADE_IN_SECONDS))
+        return int(round((1.0 - progress) * 255))
+
+    def apply_menu_fade_overlay(self) -> None:
+        fade_alpha = self.get_menu_fade_alpha()
+        if fade_alpha <= 0:
+            return
+
+        self.menu_fade_overlay.fill(BLACK)
+        if hasattr(self.menu_fade_overlay, "set_alpha"):
+            self.menu_fade_overlay.set_alpha(fade_alpha)
+        self.screen.blit(self.menu_fade_overlay, (0, 0))
+
+    def draw_save_indicator_if_needed(self) -> None:
+        if self.save_indicator_elapsed <= 0.0:
+            return
+
+        if SAVE_INDICATOR_DURATION_SECONDS <= 0:
+            indicator_alpha = 255
+        else:
+            indicator_alpha = int(round(max(0.0, min(1.0, self.save_indicator_elapsed / SAVE_INDICATOR_DURATION_SECONDS)) * 255))
+        self.renderer.draw_save_indicator(alpha=indicator_alpha)
+
+    def finalize_ui_draw(self, *, apply_menu_fade: bool = False) -> None:
+        if apply_menu_fade:
+            self.apply_menu_fade_overlay()
+        self.draw_save_indicator_if_needed()
 
     @staticmethod
     def build_splash_frame(
@@ -318,8 +463,11 @@ class Game:
             if event.type == pygame.QUIT:
                 self.state.running = False
                 return False
-            if event.type == pygame.KEYDOWN and self.key_matches(event.key, "K_w", "K_RETURN", "K_SPACE"):
+            if event.type == pygame.KEYDOWN and self.is_confirm_key(event.key):
+                self.keyboard_confirm_active = True
                 confirm_pressed = True
+            elif event.type == getattr(pygame, "KEYUP", None) and self.is_confirm_key(event.key):
+                self.keyboard_confirm_active = False
 
         if self.hardware_input is not None:
             for action in self.hardware_input.poll_actions():
@@ -479,6 +627,7 @@ class Game:
     def get_option_menu_labels(self) -> list[str]:
         labels: list[str] = []
         menu_mem_state = "On" if self.settings.menu_memory_enabled else "Off"
+        auto_return_state = "On" if self.settings.auto_return_enabled else "Off"
         volume_percent = int(round(self.settings.sound_volume * 100))
         auto_update_state = "On" if self.settings.auto_update_enabled else "Off"
 
@@ -487,6 +636,8 @@ class Game:
                 labels.append("Theme")
             elif option == "Menu Mem":
                 labels.append(f"Menu Mem: {menu_mem_state}")
+            elif option == "Auto Rtrn":
+                labels.append(f"Auto Rtrn: {auto_return_state}")
             elif option == "Volume":
                 labels.append(f"Vol: {volume_percent}%")
             elif option == "Auto Upd":
@@ -505,6 +656,44 @@ class Game:
     def reset_pet(self) -> None:
         logger.info("Resetting pet to default state.")
         self.pet = Pet()
+
+    def clear_action_return_menu(self) -> None:
+        self.state.action_return_menu = None
+
+    def set_action_return_menu(self, menu_state: MenuState) -> None:
+        self.state.action_return_menu = menu_state
+
+    def open_menu_state(self, menu_state: MenuState) -> None:
+        if menu_state == MenuState.HOME:
+            self.state.menu_state = MenuState.HOME
+        elif menu_state == MenuState.MAIN_MENU:
+            self.open_main_menu()
+        elif menu_state == MenuState.ACTIONS:
+            self.open_actions_menu()
+        elif menu_state == MenuState.PLAY_MENU:
+            self.open_play_menu()
+        elif menu_state == MenuState.OPTIONS:
+            self.open_option_menu()
+        elif menu_state == MenuState.FOODS:
+            self.open_food_menu()
+        elif menu_state == MenuState.THEMES:
+            self.open_theme_menu()
+        elif menu_state == MenuState.RESOLUTION:
+            self.open_resolution_menu()
+        elif menu_state == MenuState.STATUS:
+            self.state.menu_state = MenuState.STATUS
+        elif menu_state == MenuState.RESET_CONFIRM:
+            self.open_reset_confirm()
+        else:
+            self.state.menu_state = MenuState.HOME
+
+    def return_after_action_completion(self) -> None:
+        target_menu = MenuState.HOME
+        if self.settings.auto_return_enabled and self.state.action_return_menu is not None:
+            target_menu = self.state.action_return_menu
+
+        self.clear_action_return_menu()
+        self.open_menu_state(target_menu)
 
     def reset_jump_rope_state(self) -> None:
         self.state.jump_rope_elapsed = 0.0
@@ -538,21 +727,26 @@ class Game:
         logger.info("Performing selected action: %s", action)
 
         if action == "Feed":
+            self.clear_action_return_menu()
             self.play_sound("menu_confirm")
             self.open_food_menu()
         elif action == "Play":
+            self.clear_action_return_menu()
             self.play_sound("menu_confirm")
             self.open_play_menu()
         elif action == "Clean":
+            self.set_action_return_menu(MenuState.ACTIONS)
             self.play_sound("clean_action")
             self.start_cleaning_animation()
         elif action == "Heal":
+            self.set_action_return_menu(MenuState.ACTIONS)
             self.pet.heal()
             self.play_sound("heal_action")
-            self.state.menu_state = MenuState.HOME
+            self.return_after_action_completion()
 
     def start_jump_rope_game(self) -> None:
         logger.info("Starting jump rope minigame.")
+        self.set_action_return_menu(MenuState.PLAY_MENU)
         self.reset_jump_rope_state()
         self.state.pet_wander_x = float(SCREEN_WIDTH // 2)
         self.state.pet_wander_start_x = self.state.pet_wander_x
@@ -610,6 +804,7 @@ class Game:
 
         selected_food = self.food_options[self.state.selected_food]
         logger.info("Feeding selected food: %s", selected_food.label)
+        self.set_action_return_menu(MenuState.FOODS)
         self.state.eating_food_index = self.state.selected_food
         self.state.eating_elapsed = 0.0
         self.state.last_eating_toggle_index = -1
@@ -666,7 +861,7 @@ class Game:
         logger.info("Completing post-action celebration.")
         self.state.celebration_elapsed = 0.0
         self.state.pet_wander_pause = random.uniform(WANDER_PAUSE_MIN_SECONDS, WANDER_PAUSE_MAX_SECONDS)
-        self.state.menu_state = MenuState.HOME
+        self.return_after_action_completion()
 
     def cycle_selection(self, step: int = 1) -> None:
         if self.state.menu_state == MenuState.HOME:
@@ -793,6 +988,10 @@ class Game:
             logger.info("Confirm pressed on home screen; no action taken.")
             return
 
+        if self.state.menu_state == MenuState.SLEEP:
+            logger.info("Sleep mode is active; confirm is reserved for wake.")
+            return
+
         if self.state.menu_state == MenuState.ACTIONS:
             self.handle_action()
             return
@@ -814,6 +1013,10 @@ class Game:
             elif selected_option == "Menu Mem":
                 self.settings.menu_memory_enabled = not self.settings.menu_memory_enabled
                 logger.info("Menu memory toggled to %s", self.settings.menu_memory_enabled)
+                self.play_sound("setting_change")
+            elif selected_option == "Auto Rtrn":
+                self.settings.auto_return_enabled = not self.settings.auto_return_enabled
+                logger.info("Auto return toggled to %s", self.settings.auto_return_enabled)
                 self.play_sound("setting_change")
             elif selected_option == "Volume":
                 self.cycle_sound_volume()
@@ -900,10 +1103,17 @@ class Game:
         elif selected_option == "Option":
             self.play_sound("menu_confirm")
             self.open_option_menu()
+        elif selected_option == "Sleep":
+            self.play_sound("menu_confirm")
+            self.enter_sleep_mode()
 
     def go_back(self) -> None:
         if self.state.menu_state == MenuState.HOME:
             logger.info("Back pressed on home screen; ignoring input.")
+            return
+
+        if self.state.menu_state == MenuState.SLEEP:
+            logger.info("Sleep mode is active; back input is ignored.")
             return
 
         if self.state.menu_state == MenuState.MAIN_MENU:
@@ -934,6 +1144,7 @@ class Game:
 
         if self.state.menu_state == MenuState.JUMP_ROPE:
             logger.info("Leaving jump rope minigame and returning to play menu.")
+            self.clear_action_return_menu()
             self.reset_jump_rope_state()
             self.play_sound("menu_back")
             self.open_play_menu()
@@ -943,7 +1154,14 @@ class Game:
             logger.info("Celebration animation is active; ignoring back input.")
             return
 
-        if self.state.menu_state in (MenuState.ACTIONS, MenuState.STATUS, MenuState.OPTIONS):
+        if self.state.menu_state == MenuState.OPTIONS:
+            logger.info("Leaving options menu, saving, and returning to main menu.")
+            self.play_sound("menu_back")
+            self.save_game(show_indicator=True)
+            self.open_main_menu()
+            return
+
+        if self.state.menu_state in (MenuState.ACTIONS, MenuState.STATUS):
             logger.info("Leaving submenu and returning to main menu.")
             self.play_sound("menu_back")
             self.open_main_menu()
@@ -1103,8 +1321,61 @@ class Game:
         if self.state.celebration_elapsed >= ACTION_CELEBRATION_DURATION_SECONDS:
             self.complete_action_celebration()
 
+    def update_decay_progress(self, dt: float) -> None:
+        self.state.decay_accumulator += dt
+        while self.state.decay_accumulator >= DECAY_TIMER_SECONDS:
+            logger.info("Decay timer reached; updating pet stats.")
+            self.pet.update_decay()
+            self.state.decay_accumulator -= DECAY_TIMER_SECONDS
+
+    def update_sleep_mode(self, dt: float) -> None:
+        if self.is_confirm_input_active():
+            self.state.sleep_wake_hold_elapsed += dt
+            if self.state.sleep_wake_hold_elapsed >= SLEEP_WAKE_HOLD_SECONDS:
+                self.wake_from_sleep_mode()
+                return
+        else:
+            self.state.sleep_wake_hold_elapsed = 0.0
+
+        self.update_decay_progress(dt)
+
+    def update_save_indicator_timer(self, dt: float) -> None:
+        if self.save_indicator_elapsed <= 0.0:
+            return
+
+        self.save_indicator_elapsed = max(0.0, self.save_indicator_elapsed - dt)
+
+    def update_auto_save_timer(self, dt: float) -> None:
+        if AUTO_SAVE_INTERVAL_SECONDS <= 0:
+            return
+
+        self.auto_save_elapsed += dt
+        if self.auto_save_elapsed < AUTO_SAVE_INTERVAL_SECONDS:
+            return
+
+        logger.info("Auto-save interval reached; saving game state.")
+        self.save_game(show_indicator=self.state.menu_state != MenuState.SLEEP)
+
+    def update_auto_sleep_timer(self, dt: float) -> None:
+        if not self.auto_sleep_enabled or self.state.menu_state == MenuState.SLEEP:
+            return
+
+        self.sleep_idle_elapsed += dt
+        if self.sleep_idle_elapsed >= SLEEP_IDLE_TIMEOUT_SECONDS:
+            logger.info("Pi inactivity timeout reached; entering sleep mode.")
+            self.enter_sleep_mode()
+
     def update(self, dt: float) -> None:
         logger.debug("Updating game state with dt=%.4f", dt)
+        self.update_save_indicator_timer(dt)
+        self.update_auto_save_timer(dt)
+        if self.state.menu_state == MenuState.SLEEP:
+            self.update_sleep_mode(dt)
+            return
+
+        if self.is_fade_menu_state(self.state.menu_state):
+            self.menu_fade_elapsed = min(MENU_FADE_IN_SECONDS, self.menu_fade_elapsed + dt)
+
         self.refresh_battery_status()
         previous_menu_state = self.state.menu_state
         self.update_eating_animation(dt)
@@ -1113,70 +1384,87 @@ class Game:
         if not (self.state.menu_state == MenuState.CELEBRATING and previous_menu_state != MenuState.CELEBRATING):
             self.update_action_celebration(dt)
         self.update_pet_wander(dt)
-        self.state.decay_accumulator += dt
-        if self.state.decay_accumulator >= DECAY_TIMER_SECONDS:
-            logger.info("Decay timer reached; updating pet stats.")
-            self.pet.update_decay()
-            self.state.decay_accumulator = 0.0
+        self.update_decay_progress(dt)
+        self.update_auto_sleep_timer(dt)
 
     def draw_ui(self) -> None:
         logger.debug("Drawing UI...")
+        if self.state.menu_state == MenuState.SLEEP:
+            self.screen.fill(BLACK)
+            return
+
+        self.sync_menu_fade_state()
+
         if self.state.menu_state == MenuState.HOME:
             self.renderer.draw_home_screen(self.pet, self.settings, self.state)
+            self.finalize_ui_draw()
             return
 
         if self.state.menu_state == MenuState.MAIN_MENU:
             self.renderer.draw_fullscreen_menu(self.settings, "Menu", self.main_menu, self.state.selected_menu)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.ACTIONS:
             self.renderer.draw_fullscreen_menu(self.settings, "Action", self.actions, self.state.selected_action)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.PLAY_MENU:
             self.renderer.draw_fullscreen_menu(self.settings, "Play", self.play_menu, self.state.selected_play_menu)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.OPTIONS:
             self.renderer.draw_fullscreen_menu(self.settings, "Option", self.get_option_menu_labels(), self.state.selected_option_menu)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.RESOLUTION:
             resolution_labels = [f"{scale}X" for scale in self.resolution_options]
             self.renderer.draw_fullscreen_menu(self.settings, "Res", resolution_labels, self.state.selected_resolution)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.FOODS:
             self.renderer.draw_food_grid_screen(self.settings, self.food_options, self.state.selected_food)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.EATING:
             self.renderer.draw_eating_screen(self.pet, self.settings, self.state, self.food_options)
+            self.finalize_ui_draw()
             return
 
         if self.state.menu_state == MenuState.CLEANING:
             self.renderer.draw_cleaning_screen(self.pet, self.settings, self.state)
+            self.finalize_ui_draw()
             return
 
         if self.state.menu_state == MenuState.JUMP_ROPE:
             self.renderer.draw_jump_rope_screen(self.pet, self.settings, self.state)
+            self.finalize_ui_draw()
             return
 
         if self.state.menu_state == MenuState.CELEBRATING:
             self.renderer.draw_celebration_screen(self.pet, self.settings, self.state)
+            self.finalize_ui_draw()
             return
 
         if self.state.menu_state == MenuState.STATUS:
             self.renderer.draw_status_screen(self.pet, self.settings)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.THEMES:
             theme_labels = [self.themes[theme_key].label for theme_key in self.theme_options]
             self.renderer.draw_fullscreen_menu(self.settings, "Theme", theme_labels, self.state.selected_theme)
+            self.finalize_ui_draw(apply_menu_fade=True)
             return
 
         if self.state.menu_state == MenuState.RESET_CONFIRM:
             self.renderer.draw_reset_confirm_screen(self.state.selected_reset, self.reset_options)
+            self.finalize_ui_draw(apply_menu_fade=True)
 
     def handle_events(self) -> None:
         logger.debug("Polling events...")
@@ -1187,12 +1475,17 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 logger.debug("Key pressed: %s", event.key)
                 self.handle_keyboard_input(event.key)
+            elif event.type == getattr(pygame, "KEYUP", None):
+                self.handle_keyboard_keyup(event.key)
 
         if self.hardware_input is not None:
             for action in self.hardware_input.poll_actions():
                 self.handle_input_action(action)
 
     def handle_keyboard_input(self, key: int) -> None:
+        if self.is_confirm_key(key):
+            self.keyboard_confirm_active = True
+
         if self.key_matches(key, "K_q", "K_TAB"):
             self.handle_input_action(INPUT_NEXT)
         elif self.key_matches(key, "K_a"):
@@ -1210,7 +1503,16 @@ class Game:
         elif self.key_matches(key, "K_e", "K_ESCAPE", "K_BACKSPACE"):
             self.handle_input_action(INPUT_BACK)
 
+    def handle_keyboard_keyup(self, key: int) -> None:
+        if self.is_confirm_key(key):
+            self.keyboard_confirm_active = False
+
     def handle_input_action(self, action: str) -> None:
+        if self.state.menu_state == MenuState.SLEEP:
+            return
+
+        self.reset_sleep_idle_timer()
+
         if action == INPUT_NEXT:
             self.cycle_selection(1)
         elif action == INPUT_PREVIOUS:
@@ -1242,7 +1544,7 @@ class Game:
         self._is_shutdown = True
         if save:
             logger.info("Saving state before quit...")
-            save_game_state(self.pet, self.settings)
+            self.save_game(show_indicator=False)
         if self.display_output is not None:
             self.display_output.close()
         if self.hardware_input is not None:
@@ -1254,9 +1556,12 @@ class Game:
         logger.info("Entering main loop...")
         try:
             while self.state.running:
-                dt = self.clock.tick(FPS) / 1000.0
+                tick_rate = SLEEP_FPS if self.state.menu_state == MenuState.SLEEP else FPS
+                dt = self.clock.tick(tick_rate) / 1000.0
                 self.handle_events()
                 self.update(dt)
+                if self.state.menu_state == MenuState.SLEEP:
+                    continue
                 self.draw_ui()
                 self.present_frame()
         finally:
