@@ -8,6 +8,7 @@ import random
 import pygame
 
 from .audio import AudioManager, pre_init_audio
+from .battery import BatteryStatus, create_battery_monitor
 from .config import (
     ACTION_OPTIONS,
     ACTION_CELEBRATION_DURATION_SECONDS,
@@ -107,6 +108,8 @@ class Game:
         self.clock = pygame.time.Clock()
         self._is_shutdown = False
         self.state = RuntimeState()
+        self.battery_monitor = create_battery_monitor(self.runtime.detected_model is not None)
+        self.battery_status: BatteryStatus | None = None
         logger.info("Loading pet state...")
         self.pet, self.settings = load_game_state()
         self.hardware_input = create_input_backend(
@@ -117,7 +120,7 @@ class Game:
         if mouse is not None and hasattr(mouse, "set_visible"):
             mouse.set_visible(not self.runtime.hide_mouse)
         self.refresh_window(self.settings.display_scale)
-        self.show_startup_splash()
+        self.show_startup_splash_safe()
 
         logger.info("Loading content...")
         self.default_menu_theme, self.themes = load_menu_themes()
@@ -168,10 +171,20 @@ class Game:
             soap_sprite=self.soap_sprite,
             bubbles_sprite=self.bubbles_sprite,
         )
+        self.refresh_battery_status()
         self.apply_display_scale(self.settings.display_scale)
 
     def play_sound(self, sound_name: str) -> None:
         self.audio.play(sound_name)
+
+    def refresh_battery_status(self) -> None:
+        if self.battery_monitor is None:
+            self.battery_status = None
+        else:
+            self.battery_status = self.battery_monitor.get_status()
+
+        if hasattr(self, "renderer"):
+            self.renderer.battery_status = self.battery_status
 
     @staticmethod
     def clamp_selection(selected_index: int, options: list[object]) -> int:
@@ -251,30 +264,35 @@ class Game:
         if splash_image is None:
             return
 
-        total_duration = SPLASH_FADE_IN_SECONDS + SPLASH_HOLD_SECONDS + SPLASH_FADE_OUT_SECONDS
-        elapsed = 0.0
+        fade_in_duration = max(0.001, SPLASH_FADE_IN_SECONDS)
+        fade_out_duration = max(0.001, SPLASH_FADE_OUT_SECONDS)
+        minimum_hold_duration = max(0.0, SPLASH_HOLD_SECONDS)
+        splash_alpha_progress = 0.0
+        hold_elapsed = 0.0
+        confirm_requested = False
+        phase = "fade_in"
 
-        while elapsed < total_duration and self.state.running:
+        while self.state.running:
             dt = self.clock.tick(FPS) / 1000.0
-            elapsed += dt
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.state.running = False
-                    break
-
+            confirm_requested = confirm_requested or self.poll_splash_confirm()
             if not self.state.running:
                 break
 
-            if elapsed < SPLASH_FADE_IN_SECONDS:
-                alpha_progress = elapsed / SPLASH_FADE_IN_SECONDS
-            elif elapsed < SPLASH_FADE_IN_SECONDS + SPLASH_HOLD_SECONDS:
-                alpha_progress = 1.0
-            else:
-                fade_out_elapsed = elapsed - SPLASH_FADE_IN_SECONDS - SPLASH_HOLD_SECONDS
-                alpha_progress = 1.0 - (fade_out_elapsed / SPLASH_FADE_OUT_SECONDS)
+            if phase == "fade_in":
+                splash_alpha_progress = min(1.0, splash_alpha_progress + (dt / fade_in_duration))
+                if splash_alpha_progress >= 1.0:
+                    phase = "hold"
+            elif phase == "hold":
+                splash_alpha_progress = 1.0
+                hold_elapsed += dt
+                if confirm_requested and hold_elapsed >= minimum_hold_duration:
+                    phase = "fade_out"
+            elif phase == "fade_out":
+                splash_alpha_progress = max(0.0, splash_alpha_progress - (dt / fade_out_duration))
+                if splash_alpha_progress <= 0.0:
+                    break
 
-            splash_alpha = max(0, min(255, int(round(alpha_progress * 255))))
+            splash_alpha = max(0, min(255, int(round(splash_alpha_progress * 255))))
             self.screen.fill((0, 0, 0))
             screen_frame = self.build_splash_frame(splash_image, self.screen.get_size(), splash_alpha)
             self.screen.blit(screen_frame, (0, 0))
@@ -293,6 +311,28 @@ class Game:
 
         self.screen.fill((0, 0, 0))
         self.present_frame()
+
+    def poll_splash_confirm(self) -> bool:
+        confirm_pressed = False
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.state.running = False
+                return False
+            if event.type == pygame.KEYDOWN and self.key_matches(event.key, "K_w", "K_RETURN", "K_SPACE"):
+                confirm_pressed = True
+
+        if self.hardware_input is not None:
+            for action in self.hardware_input.poll_actions():
+                if action == INPUT_CONFIRM:
+                    confirm_pressed = True
+
+        return confirm_pressed
+
+    def show_startup_splash_safe(self) -> None:
+        try:
+            self.show_startup_splash()
+        except Exception:
+            logger.exception("Splash screen rendering failed; continuing startup without it.")
 
     def apply_display_scale(self, display_scale: int) -> None:
         if display_scale not in DISPLAY_SCALE_OPTIONS:
@@ -1065,6 +1105,7 @@ class Game:
 
     def update(self, dt: float) -> None:
         logger.debug("Updating game state with dt=%.4f", dt)
+        self.refresh_battery_status()
         previous_menu_state = self.state.menu_state
         self.update_eating_animation(dt)
         self.update_cleaning_animation(dt)

@@ -44,6 +44,8 @@ When the direct Waveshare output backend is active, the in-game `Option` menu in
 
 `Auto Upd` is off by default. When you turn it on, the launcher checks GitHub on startup, fast-forwards the local checkout if a new commit exists, and then restarts into the updated code.
 
+If a PiSugar battery manager is installed and its local socket is available, the game also shows a battery meter to the left of the clock.
+
 ### Pi setup
 
 1. Follow the official Waveshare HAT setup first:
@@ -55,6 +57,11 @@ When the direct Waveshare output backend is active, the in-game `Option` menu in
 sudo apt update
 sudo apt install -y git python3-pygame python3-gpiozero python3-lgpio python3-numpy python3-spidev
 ```
+
+If you use a PiSugar battery:
+
+- Install and run the PiSugar power manager service so `/tmp/pisugar-server.sock` is available.
+- The game queries PiSugar locally for `get battery` and `get battery_power_plugged`.
 
 3. Copy this repo to the Pi.
 4. Start the game from the repo root:

@@ -33,7 +33,9 @@ class BootstrapTests(unittest.TestCase):
             runtime_module = importlib.import_module("virtual_pet.runtime")
             wrapper_module = importlib.import_module("virtual_pet_template")
 
-            game = game_module.Game()
+            with mock.patch.object(game_module.Game, "show_startup_splash_safe", autospec=True, return_value=None):
+                game = game_module.Game()
+            
             try:
                 self.assertIsNotNone(game.renderer)
                 self.assertIsNotNone(game.audio)
@@ -105,6 +107,7 @@ class BootstrapTests(unittest.TestCase):
             with (
                 mock.patch.object(game_module, "create_display_backend", return_value=fake_display_backend),
                 mock.patch.object(game_module, "can_auto_update", return_value=True),
+                mock.patch.object(game_module.Game, "show_startup_splash_safe", autospec=True, return_value=None),
             ):
                 hat_game = game_module.Game(
                     runtime=runtime_module.RuntimeConfig(
@@ -140,7 +143,7 @@ class BootstrapTests(unittest.TestCase):
                     "load_game_state",
                     return_value=(models_module.Pet(), models_module.AppSettings(display_scale=3)),
                 ),
-                mock.patch.object(game_module.Game, "show_startup_splash", autospec=True, side_effect=capture_splash),
+                mock.patch.object(game_module.Game, "show_startup_splash_safe", autospec=True, side_effect=capture_splash),
             ):
                 scaled_game = game_module.Game()
                 try:
@@ -161,6 +164,22 @@ class BootstrapTests(unittest.TestCase):
             native_splash = game_module.Game.build_splash_frame(pygame_stub.Surface((240, 240)), (240, 240), 200)
             self.assertEqual(native_splash.get_size(), (240, 240))
             self.assertEqual(native_splash.alpha, 200)
+
+            confirm_event = type("Event", (), {"type": pygame_stub.KEYDOWN, "key": pygame_stub.K_RETURN})()
+            with mock.patch.object(game_module.Game, "show_startup_splash_safe", autospec=True, return_value=None):
+                confirm_game = game_module.Game()
+                try:
+                    with mock.patch.object(pygame_stub.event, "get", return_value=[confirm_event]):
+                        self.assertTrue(confirm_game.poll_splash_confirm())
+                finally:
+                    confirm_game.shutdown(save=False)
+
+            with mock.patch.object(game_module.Game, "show_startup_splash", autospec=True, side_effect=RuntimeError("boom")):
+                splash_safe_game = game_module.Game()
+                try:
+                    self.assertIsNotNone(splash_safe_game.renderer)
+                finally:
+                    splash_safe_game.shutdown(save=False)
 
         self.assertTrue(callable(wrapper_module.main))
 

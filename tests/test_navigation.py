@@ -31,6 +31,9 @@ class GridNavigationTests(unittest.TestCase):
         game_module = importlib.import_module("virtual_pet.game")
         input_module = importlib.import_module("virtual_pet.input")
         models_module = importlib.import_module("virtual_pet.models")
+        splash_patch = mock.patch.object(game_module.Game, "show_startup_splash_safe", autospec=True, return_value=None)
+        splash_patch.start()
+        self.addCleanup(splash_patch.stop)
         return pygame_stub, game_module, input_module, models_module
 
     def test_keyboard_arrows_follow_food_grid_direction(self) -> None:

@@ -6,6 +6,7 @@ from datetime import datetime
 
 import pygame
 
+from .battery import BatteryStatus
 from .config import (
     ACCENT,
     BAD,
@@ -97,6 +98,7 @@ class GameRenderer:
         self.big_font = pygame.font.SysFont("arial", 20, bold=True)
         self.menu_font = pygame.font.SysFont("arial", 22, bold=True)
         self.small_font = pygame.font.SysFont("arial", 12)
+        self.battery_status: BatteryStatus | None = None
 
     def get_menu_theme_palette(self, settings: AppSettings) -> ThemePalette:
         return self.themes[settings.menu_theme]
@@ -754,6 +756,54 @@ class GameRenderer:
         clock_surface = self.small_font.render(clock_text, True, palette.text)
         clock_rect = clock_surface.get_rect(topright=(SCREEN_WIDTH - 12, 12))
         clock_bg_rect = clock_rect.inflate(16, 10)
+
+        if self.battery_status is not None:
+            self.draw_battery_meter(palette, clock_bg_rect)
+
         pygame.draw.rect(self.screen, palette.panel, clock_bg_rect, border_radius=10)
         pygame.draw.rect(self.screen, palette.border, clock_bg_rect, 1, border_radius=10)
         self.screen.blit(clock_surface, clock_rect)
+
+    def draw_battery_meter(self, palette: ThemePalette, clock_bg_rect: pygame.Rect) -> None:
+        battery_percentage = max(0, min(100, self.battery_status.percentage))
+        battery_label = f"{battery_percentage}%"
+        label_surface = self.small_font.render(battery_label, True, palette.text)
+
+        meter_bg_rect = pygame.Rect(
+            clock_bg_rect.left - label_surface.get_width() - 36,
+            clock_bg_rect.y,
+            label_surface.get_width() + 30,
+            clock_bg_rect.height,
+        )
+        pygame.draw.rect(self.screen, palette.panel, meter_bg_rect, border_radius=10)
+        pygame.draw.rect(self.screen, palette.border, meter_bg_rect, 1, border_radius=10)
+
+        body_rect = pygame.Rect(meter_bg_rect.x + 6, meter_bg_rect.y + 6, 16, 8)
+        tip_rect = pygame.Rect(body_rect.right, body_rect.y + 2, 2, 4)
+        pygame.draw.rect(self.screen, palette.border, body_rect, 1, border_radius=2)
+        pygame.draw.rect(self.screen, palette.border, tip_rect, border_radius=1)
+
+        fill_margin = 2
+        fill_width = max(0, int(round(((body_rect.width - (fill_margin * 2)) * battery_percentage) / 100.0)))
+        fill_rect = pygame.Rect(
+            body_rect.x + fill_margin,
+            body_rect.y + fill_margin,
+            fill_width,
+            body_rect.height - (fill_margin * 2),
+        )
+        if self.battery_status.plugged_in:
+            fill_color = palette.accent
+        elif battery_percentage <= 20:
+            fill_color = BAD
+        elif battery_percentage <= 50:
+            fill_color = ACCENT
+        else:
+            fill_color = GOOD
+
+        if fill_rect.width > 0 and fill_rect.height > 0:
+            pygame.draw.rect(self.screen, fill_color, fill_rect, border_radius=1)
+
+        label_rect = label_surface.get_rect()
+        label_rect.x = body_rect.right + 6
+        label_rect.y = meter_bg_rect.y + ((meter_bg_rect.height - label_surface.get_height()) // 2)
+        self.screen.blit(label_surface, label_rect)
